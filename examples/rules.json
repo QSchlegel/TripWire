@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "secrets.regex.credentials",
+      "severity": "high",
+      "category": "secrets",
+      "title": "Possible credential exposure",
+      "match": {"type": "regex", "pattern": "(api[_-]?key|secret|token|mnemonic|seed phrase|private key)"},
+      "why": "Text mentions credential-like material",
+      "suggestion": "Avoid printing/storing secrets; use redaction or a vault reference"
+    },
+    {
+      "id": "irreversible.regex.destructive",
+      "severity": "high",
+      "category": "irreversible",
+      "title": "Potentially destructive command",
+      "match": {"type": "regex", "pattern": "\\b(rm -rf|mkfs|dd if=|terraform apply|kubectl delete)\\b"},
+      "why": "Command looks destructive or irreversible",
+      "suggestion": "Use a dry-run, limit scope, confirm targets, or use a safer alternative"
+    },
+    {
+      "id": "external.regex.exfil",
+      "severity": "med",
+      "category": "external_side_effect",
+      "title": "Possible data exfiltration",
+      "match": {"type": "regex", "pattern": "\\b(curl|wget|scp|rsync)\\b"},
+      "why": "Command may send/receive data over the network",
+      "suggestion": "Confirm destination and ensure no secrets are included"
+    }
+  ]
+}

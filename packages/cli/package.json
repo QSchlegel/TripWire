@@ -1,0 +1,11 @@
+{
+  "name": "@tripwire/cli",
+  "version": "0.0.1",
+  "type": "module",
+  "bin": {
+    "tripwire": "./src/cli.js"
+  },
+  "dependencies": {
+    "@tripwire/core": "0.0.1"
+  }
+}

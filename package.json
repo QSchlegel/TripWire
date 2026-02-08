@@ -1,0 +1,7 @@
+{
+  "name": "tripwire-mvp",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ]
+}
