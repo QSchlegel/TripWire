@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "name": "devops",
+  "description": "Ops agent. Allows deploy tooling but requires approval for irreversible actions and prod changes.",
+  "rules": [
+    {
+      "id": "secrets.regex.credentials",
+      "severity": "high",
+      "category": "secrets",
+      "title": "Possible credential exposure",
+      "match": {"type": "regex", "pattern": "(api[_-]?key|secret|token|mnemonic|seed phrase|private key)"},
+      "why": "Secrets in ops logs are a common incident root cause",
+      "suggestion": "Use secret managers; redact; avoid echoing env"
+    },
+    {
+      "id": "irreversible.regex.destructive",
+      "severity": "high",
+      "category": "irreversible",
+      "title": "Irreversible action",
+      "match": {"type": "regex", "pattern": "\\b(rm -rf|mkfs|dd if=|wipefs|kubectl delete|terraform destroy)\\b"},
+      "why": "Ops can do dangerous things; require explicit approval",
+      "suggestion": "Require approval; scope to specific resources; run dry-run"
+    },
+    {
+      "id": "external.regex.network",
+      "severity": "med",
+      "category": "external_side_effect",
+      "title": "Outbound network action",
+      "match": {"type": "regex", "pattern": "\\b(curl|wget|scp|rsync)\\b"},
+      "why": "Exfil risk + supply chain risk",
+      "suggestion": "Confirm destination; pin hashes; log artifacts"
+    }
+  ]
+}

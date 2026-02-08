@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "name": "reader",
+  "description": "Read-only research agent. No destructive actions; network allowed to known domains; avoid secrets.",
+  "rules": [
+    {
+      "id": "secrets.regex.credentials",
+      "severity": "high",
+      "category": "secrets",
+      "title": "Possible credential exposure",
+      "match": {"type": "regex", "pattern": "(api[_-]?key|secret|token|mnemonic|seed phrase|private key)"},
+      "why": "Text mentions credential-like material",
+      "suggestion": "Avoid printing/storing secrets; use redaction or a vault reference"
+    },
+    {
+      "id": "irreversible.regex.destructive",
+      "severity": "high",
+      "category": "irreversible",
+      "title": "Potentially destructive command",
+      "match": {"type": "regex", "pattern": "\\b(rm -rf|mkfs|dd if=|terraform apply|kubectl delete|shutdown|reboot)\\b"},
+      "why": "Reader role should not perform destructive actions",
+      "suggestion": "Do not run this in reader mode; ask for escalation"
+    },
+    {
+      "id": "external.regex.network",
+      "severity": "med",
+      "category": "external_side_effect",
+      "title": "Outbound network action",
+      "match": {"type": "regex", "pattern": "\\b(curl|wget|scp|rsync|ssh)\\b"},
+      "why": "Reader agents often leak data by accident",
+      "suggestion": "Confirm destination is allowlisted; avoid sending local files"
+    }
+  ]
+}

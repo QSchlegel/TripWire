@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "name": "wallet",
+  "description": "Wallet/treasury agent. Never handles seed phrases. Requires approval for signing/transfers.",
+  "rules": [
+    {
+      "id": "wallet.regex.seedphrase",
+      "severity": "high",
+      "category": "secrets",
+      "title": "Seed phrase / private key handling",
+      "match": {"type": "regex", "pattern": "(mnemonic|seed phrase|private key|xprv|ed25519.*secret)"},
+      "why": "Wallet agents must not ingest or print secrets",
+      "suggestion": "Use an enclave/HSM/Mesh capability; never paste the secret"
+    },
+    {
+      "id": "wallet.regex.sign",
+      "severity": "high",
+      "category": "wallet",
+      "title": "Signing / transfer attempt",
+      "match": {"type": "regex", "pattern": "\\b(sign|send|transfer|withdraw|mint)\\b"},
+      "why": "All signing should be preflighted and approval-gated",
+      "suggestion": "Require approval; show destination/amount/fee; enforce allowlists"
+    },
+    {
+      "id": "external.regex.network",
+      "severity": "med",
+      "category": "external_side_effect",
+      "title": "Outbound network call",
+      "match": {"type": "regex", "pattern": "\\b(curl|wget|http|https)\\b"},
+      "why": "Wallet context + network = exfil risk",
+      "suggestion": "Only allow known RPC endpoints; block unknown domains"
+    }
+  ]
+}

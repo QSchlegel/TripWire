@@ -13,6 +13,8 @@ Sensible Request Monitor for agent systems.
 - `packages/core` – rule evaluation + types
 - `packages/cli` – `tripwire` CLI (evaluate a JSONL file)
 - `examples/` – sample events + sample rulepacks
+- `rolepacks/` – batteries-included rulepacks by agent role
+- `ROLEPACKS.md` – how to pick and safely evolve rolepacks
 
 ## Next steps (implementation)
 1. Define event schema (minimal) + finding schema

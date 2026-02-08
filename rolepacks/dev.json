@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "name": "dev",
+  "description": "Developer agent. Allows builds/tests; blocks destructive infra and secret leakage.",
+  "rules": [
+    {
+      "id": "secrets.regex.credentials",
+      "severity": "high",
+      "category": "secrets",
+      "title": "Possible credential exposure",
+      "match": {"type": "regex", "pattern": "(api[_-]?key|secret|token|mnemonic|seed phrase|private key)"},
+      "why": "Prevent leaking secrets into logs/issues/PRs",
+      "suggestion": "Use env vars / vault refs; redact output"
+    },
+    {
+      "id": "irreversible.regex.destructive",
+      "severity": "high",
+      "category": "irreversible",
+      "title": "Potentially destructive command",
+      "match": {"type": "regex", "pattern": "\\b(rm -rf /|mkfs|dd if=|wipefs)\\b"},
+      "why": "Accidental destructive commands in dev are still catastrophic",
+      "suggestion": "Use safer alternatives; confirm targets; prefer trash/preview"
+    },
+    {
+      "id": "deploy.regex.prod",
+      "severity": "med",
+      "category": "external_side_effect",
+      "title": "Possible production deploy",
+      "match": {"type": "regex", "pattern": "\\b(terraform apply|kubectl apply|helm upgrade|fly deploy)\\b"},
+      "why": "Deploys should be explicit and reviewed",
+      "suggestion": "Run plan/diff first; require approval for prod"
+    }
+  ]
+}
