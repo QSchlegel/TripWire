@@ -1,0 +1,9 @@
+{
+  "name": "@tripwire/mesh-plugin",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./src/index.js",
+  "dependencies": {
+    "@tripwire/core": "0.0.1"
+  }
+}

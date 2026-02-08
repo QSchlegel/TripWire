@@ -15,6 +15,7 @@ Sensible Request Monitor for agent systems.
 - `examples/` – sample events + sample rulepacks
 - `rolepacks/` – batteries-included rulepacks by agent role
 - `ROLEPACKS.md` – how to pick and safely evolve rolepacks
+- `packages/mesh-plugin` – Mesh-shaped adapter (decision mapping + capability wrapper)
 
 ## Next steps (implementation)
 1. Define event schema (minimal) + finding schema
