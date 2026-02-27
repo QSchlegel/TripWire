@@ -1,55 +1,24 @@
-# Tripwire Rolepacks (batteries included)
+# TripWire Rolepacks
 
-A **rolepack** is a ready-made rulepack tuned for a common *agent role* (what the agent is allowed to do + what it must be careful about).
+Legacy rolepacks currently live in `rolepacks/*.json`.
 
-Principles:
-- Prefer **deterministic, explainable rules** (regex/allowlists/thresholds).
-- Keep rolepacks **small and composable**.
-- Separate **detection** (Tripwire) from **enforcement** (Mesh/app wrapper).
+TripWire v1 policy execution uses structured markdown policies (`.policy.md`), so legacy JSON rolepacks should be migrated with:
 
-## Included rolepacks
+```bash
+tripwire policy migrate --in rolepacks/dev.json --out rolepacks/dev.policy.md
+```
 
-- `rolepacks/reader.json` – Read-only / research agent
-- `rolepacks/dev.json` – Developer agent (local dev, builds/tests)
-- `rolepacks/devops.json` – Ops agent (deploys, infra)
-- `rolepacks/wallet.json` – Wallet/treasury agent (signing, transfers)
+## Safe evolution principles
 
-## How to pick a rolepack
+- Keep policy changes explainable and deterministic.
+- Treat policy updates like code changes with review + test fixtures.
+- Roll out in stages (`monitor` -> `enforce`).
+- Never silently downgrade `secrets`, `wallet`, or `irreversible` protections.
 
-Start strict, then loosen:
-1) choose the closest rolepack
-2) set allowlists (domains, paths, repos)
-3) run in **monitor-only** mode
-4) promote to **require_approval** for high-risk categories
-5) only then consider auto-allow rules
+## Recommended workflow
 
-## Safe evolution (agent can propose changes)
-
-Tripwire rulepacks should evolve like code:
-
-### 1) Proposal flow (no silent self-editing)
-- Agent may output a **patch proposal** (diff) to a rulepack.
-- A human (or policy gate) must approve before it becomes active.
-
-### 2) Add “why” + tests for every change
-Each new/modified rule should include:
-- `why` (what incident or failure mode it addresses)
-- at least 1 **positive** and 1 **negative** test event
-
-### 3) Two-phase rollout
-- Phase A: **monitor-only** (log findings, no blocking)
-- Phase B: **require_approval** (block unless approved)
-- Phase C: **enforce/deny** (only when false positives are low)
-
-### 4) Guardrails for self-modification
-If an agent is allowed to propose rulepack changes, lock these down:
-- Cannot change/remove rules in categories: `secrets`, `wallet`, `irreversible` without explicit approval.
-- Cannot add broad allow rules (e.g., `.*`) unless accompanied by a narrowed allowlist.
-- Must bump a `rulepack_revision` and include changelog entry.
-
-### 5) Regressions
-Keep a small corpus of “bad ideas” that must always be caught (golden tests).
-
----
-
-Next: rolepack JSON files live in `rolepacks/`.
+1. Start from the closest existing rolepack.
+2. Migrate to `.policy.md`.
+3. Replay representative event logs with `tripwire replay`.
+4. Tune false positives in monitor mode.
+5. Move to enforce mode for production paths.

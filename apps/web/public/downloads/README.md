@@ -16,7 +16,7 @@ It runs as a pre-tool-call hook on edge and Node runtimes and combines:
 ## Repository layout
 
 - `packages/guard` – `@tripwire/guard` npm package (core, policy compiler, anomaly, adapters, CLI)
-- `apps/web` – public-facing Next.js site (`/`, `/docs`, `/simulator`, `/research`)
+- `apps/web` – public-facing Next.js site (`/`, `/simulator`, `/research`)
 - `examples/default.policy.md` – sample structured policy markdown
 - `docs/chain-of-command.md` – unsupported-call escalation process
 - `docs/research-matrix.md` – comparable solutions and positioning references

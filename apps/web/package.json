@@ -1,0 +1,29 @@
+{
+  "name": "@tripwire/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "predev": "npm run build --workspace @tripwire/guard",
+    "dev": "next dev",
+    "prebuild": "npm run build --workspace @tripwire/guard",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@react-three/fiber": "^9.5.0",
+    "@tripwire/guard": "file:../../packages/guard",
+    "next": "^16.1.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "three": "^0.174.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.183.1",
+    "typescript": "^5.8.2"
+  }
+}
