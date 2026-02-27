@@ -2,6 +2,15 @@
   "name": "@tripwire/guard",
   "version": "0.1.0",
   "description": "Edge and Node pre-tool-call guard hooks for agentic runtimes.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tripwire-dev/TripWire.git",
+    "directory": "packages/guard"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
