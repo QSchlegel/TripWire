@@ -1,7 +1,8 @@
 "use client";
 
 import { Canvas, useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
+import { dampValue, proximityFalloff } from "./node-animation-core";
 import * as THREE from "three";
 
 const MAX_DELTA = 0.05;
@@ -10,12 +11,14 @@ const SUPERVISOR_X = -0.1;
 const ALLOW_GATE_X = 2.1;
 const DISPATCHER_X = 4.15;
 const STAGE_X = [-4, 0, ALLOW_GATE_X, DISPATCHER_X] as const;
+const STAGE_NODE_POSITIONS = STAGE_X.map((x) => new THREE.Vector3(x, 0, 0));
 const PACKET_COUNT = 42;
 const STATUS_COLORS_DARK = ["#1ddb96", "#f5921f", "#f04060"] as const;
 const STATUS_COLORS_LIGHT = ["#127a50", "#b76400", "#b6314d"] as const;
 const BRANCH_T = 0.44;
 const POSITION_SCRATCH = new THREE.Vector3();
 type SceneTone = "dark" | "light";
+type NodeActivityRef = MutableRefObject<Float32Array>;
 
 interface Packet {
   progress: number;
@@ -91,8 +94,18 @@ function positionForPacket(packet: Packet, t: number, out: THREE.Vector3): void 
   out.set(x, y, 0);
 }
 
-function StageNodes({ tone }: { tone: SceneTone }) {
-  const refs = useRef<Array<THREE.Group | null>>([]);
+function StageNodes({
+  tone,
+  nodeActivityRef
+}: {
+  tone: SceneTone;
+  nodeActivityRef: NodeActivityRef;
+}) {
+  const groupRefs = useRef<Array<THREE.Group | null>>([]);
+  const ringRefs = useRef<Array<THREE.Mesh | null>>([]);
+  const ringMaterialRefs = useRef<Array<THREE.MeshStandardMaterial | null>>([]);
+  const coreMaterialRefs = useRef<Array<THREE.MeshStandardMaterial | null>>([]);
+  const reactiveLevels = useRef<Float32Array>(new Float32Array(STAGE_X.length));
   const nodeColors =
     tone === "light"
       ? [
@@ -112,11 +125,44 @@ function StageNodes({ tone }: { tone: SceneTone }) {
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, MAX_DELTA);
-    refs.current.forEach((group, index) => {
+    const activity = nodeActivityRef.current;
+
+    groupRefs.current.forEach((group, index) => {
       if (!group) return;
+      const targetActivity = activity[index] ?? 0;
+      const nextActivity = dampValue(reactiveLevels.current[index] ?? 0, targetActivity, dt, 8.5);
+      reactiveLevels.current[index] = nextActivity;
+
+      const t = state.clock.elapsedTime * (0.9 + index * 0.08) + index * 0.6;
       const direction = index % 2 === 0 ? 1 : -1;
-      group.rotation.y += dt * (0.24 + index * 0.04) * direction;
-      group.rotation.x = Math.sin(state.clock.elapsedTime * (0.45 + index * 0.08)) * 0.12;
+      group.rotation.y += dt * (0.14 + index * 0.03) * direction;
+      group.rotation.x = Math.sin(t * 0.55) * 0.08;
+      group.rotation.z = Math.sin(t * 0.25) * 0.035;
+      group.position.y = Math.sin(t * 0.78) * 0.035 + nextActivity * 0.02;
+      const ambientScale = 1 + Math.sin(t * 1.15) * 0.02;
+      group.scale.setScalar(ambientScale + nextActivity * 0.05);
+
+      const ring = ringRefs.current[index];
+      if (ring) {
+        ring.rotation.z += dt * (0.34 + index * 0.04) * direction;
+      }
+
+      const ambientGlow = (Math.sin(t * 1.2) + 1) * 0.5;
+      const ringMaterial = ringMaterialRefs.current[index];
+      if (ringMaterial) {
+        ringMaterial.emissiveIntensity =
+          ringEmissive +
+          (tone === "light" ? 0.06 : 0.1) * ambientGlow +
+          (tone === "light" ? 0.14 : 0.2) * nextActivity;
+      }
+
+      const coreMaterial = coreMaterialRefs.current[index];
+      if (coreMaterial) {
+        coreMaterial.emissiveIntensity =
+          coreEmissive +
+          (tone === "light" ? 0.08 : 0.12) * ambientGlow +
+          (tone === "light" ? 0.18 : 0.24) * nextActivity;
+      }
     });
   });
 
@@ -129,17 +175,36 @@ function StageNodes({ tone }: { tone: SceneTone }) {
           <group
             key={x}
             ref={(node) => {
-              refs.current[index] = node;
+              groupRefs.current[index] = node;
             }}
             position={[x, 0, 0]}
           >
-            <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <mesh
+              ref={(node) => {
+                ringRefs.current[index] = node;
+              }}
+              rotation={[Math.PI / 2, 0, 0]}
+            >
               <torusGeometry args={[0.72, 0.06, 12, 70]} />
-              <meshStandardMaterial color={colors.ring} emissive={colors.ring} emissiveIntensity={ringEmissive} />
+              <meshStandardMaterial
+                ref={(material) => {
+                  ringMaterialRefs.current[index] = material;
+                }}
+                color={colors.ring}
+                emissive={colors.ring}
+                emissiveIntensity={ringEmissive}
+              />
             </mesh>
             <mesh>
               <sphereGeometry args={[0.13, 20, 20]} />
-              <meshStandardMaterial color={colors.core} emissive={colors.ring} emissiveIntensity={coreEmissive} />
+              <meshStandardMaterial
+                ref={(material) => {
+                  coreMaterialRefs.current[index] = material;
+                }}
+                color={colors.core}
+                emissive={colors.ring}
+                emissiveIntensity={coreEmissive}
+              />
             </mesh>
           </group>
         );
@@ -237,7 +302,13 @@ function FlowGuides({ tone }: { tone: SceneTone }) {
   );
 }
 
-function FlowPackets({ tone }: { tone: SceneTone }) {
+function FlowPackets({
+  tone,
+  nodeActivityRef
+}: {
+  tone: SceneTone;
+  nodeActivityRef: NodeActivityRef;
+}) {
   const statusColors = tone === "light" ? STATUS_COLORS_LIGHT : STATUS_COLORS_DARK;
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -245,6 +316,9 @@ function FlowPackets({ tone }: { tone: SceneTone }) {
   const packets = useRef<Packet[]>(Array.from({ length: PACKET_COUNT }, makePacket));
 
   useFrame((state, delta) => {
+    const nodeActivity = nodeActivityRef.current;
+    nodeActivity.fill(0);
+
     const mesh = meshRef.current;
     if (!mesh) return;
 
@@ -257,6 +331,13 @@ function FlowPackets({ tone }: { tone: SceneTone }) {
       if (packet.progress >= 1) resetPacket(packet);
 
       positionForPacket(packet, packet.progress, POSITION_SCRATCH);
+
+      for (let stageIndex = 0; stageIndex < STAGE_NODE_POSITIONS.length; stageIndex += 1) {
+        const influence = proximityFalloff(POSITION_SCRATCH.distanceTo(STAGE_NODE_POSITIONS[stageIndex]), 0.95);
+        if (influence > nodeActivity[stageIndex]) {
+          nodeActivity[stageIndex] = influence;
+        }
+      }
 
       const pulse = 0.85 + Math.sin(state.clock.elapsedTime * 4 + packet.phase) * 0.15;
       const fade = packet.lane === 2 && packet.progress > 0.68 ? Math.max(0.12, 1 - (packet.progress - 0.68) / 0.32) : 1;
@@ -287,6 +368,7 @@ function FlowPackets({ tone }: { tone: SceneTone }) {
 }
 
 function Scene({ tone }: { tone: SceneTone }) {
+  const nodeActivityRef = useRef<Float32Array>(new Float32Array(STAGE_X.length));
   const ambient = tone === "light" ? 0.44 : 0.35;
   const lightA = tone === "light" ? 28 : 45;
   const lightB = tone === "light" ? 11 : 18;
@@ -307,8 +389,8 @@ function Scene({ tone }: { tone: SceneTone }) {
       </mesh>
 
       <FlowGuides tone={tone} />
-      <StageNodes tone={tone} />
-      <FlowPackets tone={tone} />
+      <StageNodes tone={tone} nodeActivityRef={nodeActivityRef} />
+      <FlowPackets tone={tone} nodeActivityRef={nodeActivityRef} />
     </>
   );
 }

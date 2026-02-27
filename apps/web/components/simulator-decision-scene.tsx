@@ -2,8 +2,9 @@
 
 import { Canvas, useFrame } from "@react-three/fiber";
 import type { Decision } from "@tripwire/guard";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
 import type { SimulatorExecutionStatus } from "@/lib/simulator-smoke-cases";
+import { dampValue, decayValue, proximityFalloff } from "./node-animation-core";
 import * as THREE from "three";
 
 export type ReducedMotionFallbackMode = "auto" | "always_static";
@@ -78,6 +79,20 @@ const NODE_POSITIONS: Record<
   allow: new THREE.Vector3(3.45, 0.35, 0),
   block: new THREE.Vector3(3.45, -1.2, 0)
 };
+type NodeId = keyof typeof NODE_POSITIONS;
+type NodeActivityState = Record<NodeId, number>;
+const NODE_IDS: NodeId[] = ["model", "tripwire", "supervisor", "dispatcher", "allow", "block"];
+
+function makeNodeActivityState(): NodeActivityState {
+  return {
+    model: 0,
+    tripwire: 0,
+    supervisor: 0,
+    dispatcher: 0,
+    allow: 0,
+    block: 0
+  };
+}
 
 const ROUTES: Record<VisualRoute, RouteDefinition> = {
   idle: {
@@ -240,11 +255,15 @@ function CurveLine({
 }
 
 function NodeMarker({
+  nodeId,
+  activityRef,
   position,
   color,
   pulseStrength = 0.05,
   pulseSpeed = 1.8
 }: {
+  nodeId: NodeId;
+  activityRef: MutableRefObject<NodeActivityState>;
   position: THREE.Vector3;
   color: string;
   pulseStrength?: number;
@@ -258,6 +277,7 @@ function NodeMarker({
   const ringPrimaryMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
   const ringSecondaryMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
   const haloMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const reactiveLevelRef = useRef(0);
   const tuple = useMemo<[number, number, number]>(
     () => [position.x, position.y, position.z],
     [position]
@@ -267,12 +287,15 @@ function NodeMarker({
   useFrame((state, delta) => {
     const dt = Math.min(delta, MAX_DELTA);
     const t = state.clock.elapsedTime * pulseSpeed + phase;
+    const target = activityRef.current[nodeId] ?? 0;
+    const reactive = dampValue(reactiveLevelRef.current, target, dt, 10);
+    reactiveLevelRef.current = reactive;
 
     if (nodeRef.current) {
-      const scale = 1 + Math.sin(t) * (pulseStrength * 0.5);
+      const scale = 1 + Math.sin(t) * (pulseStrength * 0.5) + reactive * 0.06;
       nodeRef.current.scale.setScalar(scale);
-      nodeRef.current.position.y = Math.sin(t * 0.6) * 0.02;
-      nodeRef.current.rotation.z = Math.sin(t * 0.25) * 0.035;
+      nodeRef.current.position.y = Math.sin(t * 0.6) * 0.02 + reactive * 0.01;
+      nodeRef.current.rotation.z = Math.sin(t * 0.25) * 0.035 + reactive * 0.015;
     }
 
     if (ringPrimaryRef.current) {
@@ -284,23 +307,23 @@ function NodeMarker({
     }
 
     if (coreMaterialRef.current) {
-      coreMaterialRef.current.emissiveIntensity = 0.24 + (Math.sin(t * 1.1) + 1) * 0.1;
+      coreMaterialRef.current.emissiveIntensity = 0.24 + (Math.sin(t * 1.1) + 1) * 0.1 + reactive * 0.18;
     }
 
     if (ringPrimaryMaterialRef.current) {
-      ringPrimaryMaterialRef.current.emissiveIntensity = 0.11 + (Math.cos(t * 0.95) + 1) * 0.06;
+      ringPrimaryMaterialRef.current.emissiveIntensity = 0.11 + (Math.cos(t * 0.95) + 1) * 0.06 + reactive * 0.13;
     }
 
     if (ringSecondaryMaterialRef.current) {
-      ringSecondaryMaterialRef.current.emissiveIntensity = 0.08 + (Math.sin(t * 0.9) + 1) * 0.05;
+      ringSecondaryMaterialRef.current.emissiveIntensity = 0.08 + (Math.sin(t * 0.9) + 1) * 0.05 + reactive * 0.1;
     }
 
     if (haloMaterialRef.current) {
-      haloMaterialRef.current.opacity = 0.14 + (Math.sin(t * 1.2) + 1) * 0.04;
+      haloMaterialRef.current.opacity = 0.14 + (Math.sin(t * 1.2) + 1) * 0.04 + reactive * 0.06;
     }
 
     if (nodeLightRef.current) {
-      nodeLightRef.current.intensity = 0.5 + (Math.cos(t * 1.0) + 1) * 0.12;
+      nodeLightRef.current.intensity = 0.5 + (Math.cos(t * 1.0) + 1) * 0.12 + reactive * 0.24;
     }
   });
 
@@ -454,6 +477,7 @@ function FlowPacket({
   eventDurationMs,
   isPlaying,
   activeIndex,
+  onPacketFrame,
   onAnimationComplete
 }: {
   route: RouteDefinition;
@@ -462,6 +486,7 @@ function FlowPacket({
   eventDurationMs: number;
   isPlaying: boolean;
   activeIndex: number;
+  onPacketFrame?: (position: THREE.Vector3) => void;
   onAnimationComplete?: (index: number) => void;
 }) {
   const packetRef = useRef<THREE.Mesh>(null);
@@ -470,11 +495,17 @@ function FlowPacket({
   const progressRef = useRef(0);
   const completionSentRef = useRef(false);
   const onCompleteRef = useRef(onAnimationComplete);
+  const onPacketFrameRef = useRef(onPacketFrame);
   const scratch = useMemo(() => new THREE.Vector3(), []);
+  const color = useMemo(() => new THREE.Color(), []);
 
   useEffect(() => {
     onCompleteRef.current = onAnimationComplete;
   }, [onAnimationComplete]);
+
+  useEffect(() => {
+    onPacketFrameRef.current = onPacketFrame;
+  }, [onPacketFrame]);
 
   useEffect(() => {
     progressRef.current = 0;
@@ -522,10 +553,11 @@ function FlowPacket({
     path.getPoint(localT, scratch);
 
     packet.position.copy(scratch);
+    onPacketFrameRef.current?.(scratch);
     const pulse = 0.92 + Math.sin(state.clock.elapsedTime * 4.2) * 0.06;
     packet.scale.setScalar(pulse);
 
-    const color = new THREE.Color(colorForPath(pathKey) || NEUTRAL_FLOW_COLOR);
+    color.set(colorForPath(pathKey) || NEUTRAL_FLOW_COLOR);
     material.color.copy(color);
     material.emissive.copy(color);
     material.emissiveIntensity = 0.6;
@@ -567,6 +599,15 @@ function DecisionFlowScene({
   onAnimationComplete?: (index: number) => void;
 }) {
   const paths = useMemo(() => makePaths(), []);
+  const nodeActivityRef = useRef<NodeActivityState>(makeNodeActivityState());
+
+  useFrame((_, delta) => {
+    const dt = Math.min(delta, MAX_DELTA);
+    for (let i = 0; i < NODE_IDS.length; i += 1) {
+      const nodeId = NODE_IDS[i];
+      nodeActivityRef.current[nodeId] = decayValue(nodeActivityRef.current[nodeId], dt, 4.8);
+    }
+  });
 
   return (
     <>
@@ -610,12 +651,47 @@ function DecisionFlowScene({
         opacity={segmentOpacity(route, "supervisorToBlock")}
       />
 
-      <NodeMarker position={NODE_POSITIONS.model} color="#9fd2cf" pulseStrength={0.035} pulseSpeed={1.4} />
+      <NodeMarker
+        nodeId="model"
+        activityRef={nodeActivityRef}
+        position={NODE_POSITIONS.model}
+        color="#9fd2cf"
+        pulseStrength={0.035}
+        pulseSpeed={1.4}
+      />
       <TripwireGateMarker position={NODE_POSITIONS.tripwire} />
-      <NodeMarker position={NODE_POSITIONS.supervisor} color={SUPERVISOR_COLOR} pulseStrength={0.065} pulseSpeed={1.95} />
-      <NodeMarker position={NODE_POSITIONS.dispatcher} color={DISPATCHER_COLOR} pulseStrength={0.04} pulseSpeed={1.55} />
-      <NodeMarker position={NODE_POSITIONS.allow} color={DECISION_COLORS.allow} pulseStrength={0.05} pulseSpeed={1.9} />
-      <NodeMarker position={NODE_POSITIONS.block} color={DECISION_COLORS.block} pulseStrength={0.05} pulseSpeed={1.9} />
+      <NodeMarker
+        nodeId="supervisor"
+        activityRef={nodeActivityRef}
+        position={NODE_POSITIONS.supervisor}
+        color={SUPERVISOR_COLOR}
+        pulseStrength={0.065}
+        pulseSpeed={1.95}
+      />
+      <NodeMarker
+        nodeId="dispatcher"
+        activityRef={nodeActivityRef}
+        position={NODE_POSITIONS.dispatcher}
+        color={DISPATCHER_COLOR}
+        pulseStrength={0.04}
+        pulseSpeed={1.55}
+      />
+      <NodeMarker
+        nodeId="allow"
+        activityRef={nodeActivityRef}
+        position={NODE_POSITIONS.allow}
+        color={DECISION_COLORS.allow}
+        pulseStrength={0.05}
+        pulseSpeed={1.9}
+      />
+      <NodeMarker
+        nodeId="block"
+        activityRef={nodeActivityRef}
+        position={NODE_POSITIONS.block}
+        color={DECISION_COLORS.block}
+        pulseStrength={0.05}
+        pulseSpeed={1.9}
+      />
 
       <FlowPacket
         route={route}
@@ -624,6 +700,15 @@ function DecisionFlowScene({
         eventDurationMs={eventDurationMs}
         isPlaying={isPlaying}
         activeIndex={activeIndex}
+        onPacketFrame={(position) => {
+          for (let i = 0; i < NODE_IDS.length; i += 1) {
+            const nodeId = NODE_IDS[i];
+            const influence = proximityFalloff(position.distanceTo(NODE_POSITIONS[nodeId]), 1.1);
+            if (influence > nodeActivityRef.current[nodeId]) {
+              nodeActivityRef.current[nodeId] = influence;
+            }
+          }
+        }}
         onAnimationComplete={onAnimationComplete}
       />
     </>

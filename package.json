@@ -20,6 +20,7 @@
     "build:web": "npm run build --workspace @tripwire/web",
     "test": "npm run test --workspace @tripwire/guard",
     "dev:web": "npm run dev --workspace @tripwire/web",
-    "dev:guard": "npm run dev --workspace @tripwire/guard"
+    "dev:guard": "npm run dev --workspace @tripwire/guard",
+    "start": "npm run start --workspace @tripwire/web"
   }
 }
