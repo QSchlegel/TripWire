@@ -404,10 +404,13 @@ export function PolicySimulator() {
             <VisualPolicyDesigner policyText={policyText} onPolicyChange={setPolicyText} disabled={isRunning} />
           ) : (
             <div className="simulator-policy-markdown">
-              <div className="simulator-policy-markdown__preview" aria-label="Rendered policy markdown">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{policyPreviewMarkdown}</ReactMarkdown>
-              </div>
-              <label htmlFor="sim-policy">
+              <section className="simulator-policy-markdown__panel">
+                <p className="simulator-policy-markdown__panel-label">Rendered Policy Preview</p>
+                <div className="simulator-policy-markdown__preview" aria-label="Rendered policy markdown">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{policyPreviewMarkdown}</ReactMarkdown>
+                </div>
+              </section>
+              <label htmlFor="sim-policy" className="simulator-policy-markdown__panel simulator-policy-markdown__panel--editor">
                 <span className="simulator-policy-markdown__editor-label">Policy Markdown Source</span>
                 <textarea
                   id="sim-policy"
