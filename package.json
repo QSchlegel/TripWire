@@ -2,10 +2,10 @@
   "name": "tripwire",
   "version": "0.1.0",
   "private": true,
-  "workspaces": [
-    "packages/guard",
-    "apps/web"
-  ],
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "workspaces": ["packages/guard", "apps/web"],
   "overrides": {
     "react": "19.2.4",
     "react-dom": "19.2.4"
