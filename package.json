@@ -15,9 +15,9 @@
     "react-dom": "19.2.4"
   },
   "scripts": {
-    "build": "npm run build --workspace @twire/guard && npm run build --workspace @twire/web",
+    "build": "npm run prisma:generate:web && npm run build --workspace @twire/guard && npm run build --workspace @twire/web",
     "build:guard": "npm run build --workspace @twire/guard",
-    "build:web": "npm run build --workspace @twire/web",
+    "build:web": "npm run prisma:generate:web && npm run build --workspace @twire/web",
     "prisma:generate:web": "npm run prisma:generate --workspace @twire/web",
     "prisma:migrate:web": "npm run prisma:migrate --workspace @twire/web",
     "rl:train": "npm run rl:train --workspace @twire/web",

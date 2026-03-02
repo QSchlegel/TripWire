@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "npm run build --workspace @twire/guard",
+    "predev": "npm run prisma:generate && npm run build --workspace @twire/guard",
     "dev": "next dev",
-    "prebuild": "npm run build --workspace @twire/guard",
+    "prebuild": "npm run prisma:generate && npm run build --workspace @twire/guard",
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
