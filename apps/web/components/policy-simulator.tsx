@@ -1,7 +1,7 @@
 "use client";
 
-import { InMemoryStore, PolicyCompileError, compilePolicy, createGuard } from "@tripwire/guard";
-import type { GuardDecisionResult } from "@tripwire/guard";
+import { InMemoryStore, PolicyCompileError, compilePolicy, createGuard } from "@twire/guard";
+import type { GuardDecisionResult } from "@twire/guard";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -58,7 +58,6 @@ function normalizePolicyMarkdownForPreview(markdown: string): string {
 
 export function PolicySimulator() {
   const [policyText, setPolicyText] = useState(samplePolicy);
-  const [policyEditorMode, setPolicyEditorMode] = useState<"visual" | "markdown">("visual");
   const [eventsText, setEventsText] = useState(sampleEventsJsonl);
   const [selectedCaseId, setSelectedCaseId] = useState(simulatorSmokeCases[0]?.id ?? "");
   const [results, setResults] = useState<EventWithResult[]>([]);
@@ -272,137 +271,121 @@ export function PolicySimulator() {
   const policyPreviewMarkdown = useMemo(() => normalizePolicyMarkdownForPreview(policyText), [policyText]);
 
   return (
-    <section className="simulator-shell">
-      <section className="simulator-flow-panel" aria-label="Decision flow animation">
-        <div className="simulator-flow-scene">
-          <SimulatorDecisionScene
-            activeDecision={activeEntry?.result.decision}
-            activeExecution={activeEntry?.execution}
-            activeChainStatus={activeEntry?.result.chainOfCommand.status}
-            activeChainEscalated={activeEntry?.chainEscalated}
-            activeIndex={activeResultIndex}
-            playbackToken={playbackToken}
-            eventDurationMs={playbackSpeedMs}
-            isPlaying={isPlaying || isStepping}
-            onAnimationComplete={handleAnimationComplete}
-            reducedMotionFallbackMode="auto"
-          />
-        </div>
+    <section className="simulator-immersive">
+      <section className="simulator-shell simulator-shell--immersive">
+        <section className="simulator-stage simulator-card simulator-card--stage" aria-label="Decision flow animation">
+          <div className="simulator-stage__scene">
+            <SimulatorDecisionScene
+              activeDecision={activeEntry?.result.decision}
+              activeExecution={activeEntry?.execution}
+              activeChainStatus={activeEntry?.result.chainOfCommand.status}
+              activeChainEscalated={activeEntry?.chainEscalated}
+              activeIndex={activeResultIndex}
+              playbackToken={playbackToken}
+              eventDurationMs={playbackSpeedMs}
+              isPlaying={isPlaying || isStepping}
+              onAnimationComplete={handleAnimationComplete}
+              reducedMotionFallbackMode="auto"
+              presentation="embedded"
+              cameraMode="limited"
+            />
+          </div>
+        </section>
 
-        <div className="simulator-flow-meta">
-          <h3>Active Event</h3>
-          {activeEntry ? (
-            <>
-              <p className="simulator-flow-meta__line">
-                <strong>Event:</strong> #{activeEntry.index + 1} / {results.length}
-              </p>
-              <p className="simulator-flow-meta__line">
-                <strong>Tool:</strong> {activeTool}
-              </p>
-              <p className="simulator-flow-meta__line">
-                <strong>Command:</strong> {activeCommand}
-              </p>
-              <p className="simulator-flow-meta__line">
-                <strong>Decision:</strong>{" "}
-                <span className={`decision-badge decision-badge--${activeEntry.result.decision}`}>
-                  {activeEntry.result.decision.replace("_", " ")}
-                </span>
-              </p>
-              <p className="simulator-flow-meta__line">
-                <strong>Execution:</strong>{" "}
-                <span className={`execution-badge execution-badge--${activeEntry.execution}`}>
-                  {executionLabel(activeEntry.execution)}
-                </span>
-              </p>
-              <p className="simulator-flow-meta__line">
-                <strong>Chain:</strong> {activeEntry.result.chainOfCommand.status}
-              </p>
-              <p className="simulator-flow-meta__line">
-                <strong>Escalated:</strong> {String(activeEntry.chainEscalated)}
-              </p>
-              {activeEntry.reviewReasons.length > 0 ? (
+        <section
+          className="simulator-flow-panel simulator-card simulator-card--flow"
+          aria-label="Active event details"
+        >
+          <div className="simulator-flow-meta">
+            <h3>Active Event</h3>
+            {activeEntry ? (
+              <>
                 <p className="simulator-flow-meta__line">
-                  <strong>Reason:</strong> {activeEntry.reviewReasons.join("; ")}
+                  <strong>Event:</strong> #{activeEntry.index + 1} / {results.length}
                 </p>
-              ) : null}
-            </>
-          ) : (
-            <p className="simulator-flow-meta__empty">
-              Select a scenario to start the simulation.
-            </p>
-          )}
+                <p className="simulator-flow-meta__line">
+                  <strong>Tool:</strong> {activeTool}
+                </p>
+                <p className="simulator-flow-meta__line">
+                  <strong>Command:</strong> {activeCommand}
+                </p>
+                <p className="simulator-flow-meta__line">
+                  <strong>Decision:</strong>{" "}
+                  <span className={`decision-badge decision-badge--${activeEntry.result.decision}`}>
+                    {activeEntry.result.decision.replace("_", " ")}
+                  </span>
+                </p>
+                <p className="simulator-flow-meta__line">
+                  <strong>Execution:</strong>{" "}
+                  <span className={`execution-badge execution-badge--${activeEntry.execution}`}>
+                    {executionLabel(activeEntry.execution)}
+                  </span>
+                </p>
+                <p className="simulator-flow-meta__line">
+                  <strong>Chain:</strong> {activeEntry.result.chainOfCommand.status}
+                </p>
+                <p className="simulator-flow-meta__line">
+                  <strong>Escalated:</strong> {String(activeEntry.chainEscalated)}
+                </p>
+                {activeEntry.reviewReasons.length > 0 ? (
+                  <p className="simulator-flow-meta__line">
+                    <strong>Reason:</strong> {activeEntry.reviewReasons.join("; ")}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p className="simulator-flow-meta__empty">
+                Select a scenario to start the simulation.
+              </p>
+            )}
 
-          <div className="simulator-lane-legend">
-            <span className="simulator-lane-legend__item simulator-lane-legend__item--allow">Green: allow</span>
-            <span className="simulator-lane-legend__item simulator-lane-legend__item--approval">
-              Amber: supervisor approval gate
-            </span>
-            <span className="simulator-lane-legend__item simulator-lane-legend__item--block">Red: block</span>
-          </div>
-        </div>
-      </section>
-
-      <div className="sim-scenarios">
-        <p className="sim-section-label">Scenarios</p>
-        <div className="sim-scenario-grid">
-          {simulatorSmokeCases.map((sc, index) => {
-            const isActive = selectedCaseId === sc.id;
-            const scenarioId = `SC-${String(index + 1).padStart(2, "0")}`;
-
-            return (
-              <button
-                key={sc.id}
-                type="button"
-                disabled={isRunning}
-                onClick={() => loadUseCase(sc.id)}
-                aria-pressed={isActive}
-                className={`sim-scenario-card${isActive ? " sim-scenario-card--active" : ""}`}
-              >
-                <span className="sim-scenario-card__meta">
-                  <span className="sim-scenario-card__id">{scenarioId}</span>
-                  {isActive ? <span className="sim-scenario-card__state">Active</span> : null}
-                </span>
-                <span className="sim-scenario-card__name">{sc.name}</span>
-                <span className="sim-scenario-card__desc">{sc.description}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="simulator-controls">
-        <div className="simulator-policy-editor">
-          <div className="simulator-policy-editor__header">
-            <div>
-              <h2>Guard Policy</h2>
-              <p>Build rules visually or edit structured Markdown policy directly.</p>
-            </div>
-
-            <div className="simulator-policy-editor__tabs" role="tablist" aria-label="Policy editor mode">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={policyEditorMode === "visual"}
-                className={policyEditorMode === "visual" ? "is-active" : ""}
-                onClick={() => setPolicyEditorMode("visual")}
-              >
-                Visual Designer
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={policyEditorMode === "markdown"}
-                className={policyEditorMode === "markdown" ? "is-active" : ""}
-                onClick={() => setPolicyEditorMode("markdown")}
-              >
-                Markdown
-              </button>
+            <div className="simulator-lane-legend">
+              <span className="simulator-lane-legend__item simulator-lane-legend__item--allow">Green: allow</span>
+              <span className="simulator-lane-legend__item simulator-lane-legend__item--approval">
+                Amber: supervisor approval gate
+              </span>
+              <span className="simulator-lane-legend__item simulator-lane-legend__item--block">Red: block</span>
             </div>
           </div>
+        </section>
 
-          {policyEditorMode === "visual" ? (
-            <VisualPolicyDesigner policyText={policyText} onPolicyChange={setPolicyText} disabled={isRunning} />
-          ) : (
+        <div className="sim-scenarios simulator-card simulator-card--scenarios">
+          <p className="sim-section-label">Scenarios</p>
+          <div className="sim-scenario-grid">
+            {simulatorSmokeCases.map((sc, index) => {
+              const isActive = selectedCaseId === sc.id;
+              const scenarioId = `SC-${String(index + 1).padStart(2, "0")}`;
+
+              return (
+                <button
+                  key={sc.id}
+                  type="button"
+                  disabled={isRunning}
+                  onClick={() => loadUseCase(sc.id)}
+                  aria-pressed={isActive}
+                  className={`sim-scenario-card${isActive ? " sim-scenario-card--active" : ""}`}
+                >
+                  <span className="sim-scenario-card__meta">
+                    <span className="sim-scenario-card__id">{scenarioId}</span>
+                    {isActive ? <span className="sim-scenario-card__state">Active</span> : null}
+                  </span>
+                  <span className="sim-scenario-card__name">{sc.name}</span>
+                  <span className="sim-scenario-card__desc">{sc.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="simulator-controls simulator-card simulator-card--controls">
+          <div className="simulator-policy-editor">
+            <div className="simulator-policy-editor__header">
+              <div>
+                <h2>Guard Policy</h2>
+                <p>Edit structured Markdown policy directly.</p>
+              </div>
+            </div>
+
             <div className="simulator-policy-markdown">
               <section className="simulator-policy-markdown__panel">
                 <p className="simulator-policy-markdown__panel-label">Rendered Policy Preview</p>
@@ -421,156 +404,167 @@ export function PolicySimulator() {
                 />
               </label>
             </div>
-          )}
-        </div>
-
-        <label htmlFor="sim-events">
-          <div>
-            <h2>Event Stream (JSONL)</h2>
-            <p>Replay tool-call events and inspect deterministic findings plus anomaly-driven escalations.</p>
           </div>
-          <textarea
-            id="sim-events"
-            value={eventsText}
-            onChange={(event) => setEventsText(event.target.value)}
-            spellCheck={false}
-          />
-        </label>
-      </div>
 
-      <div className="simulator-toolbar">
-        <button type="button" onClick={runSimulation} disabled={isRunning}>
-          {isRunning ? "Running…" : "Run Simulation"}
-        </button>
-
-        <div className="simulator-playback">
-          <button type="button" onClick={togglePlayback} disabled={results.length === 0}>
-            {isPlaying ? "Pause" : "Play"}
-          </button>
-          <button type="button" onClick={stepPlayback} disabled={results.length === 0}>
-            Step
-          </button>
-          <button type="button" onClick={resetPlayback} disabled={results.length === 0}>
-            Reset
-          </button>
-          <label htmlFor="sim-playback-speed">
-            Speed
-            <select
-              id="sim-playback-speed"
-              value={String(playbackSpeedMs)}
-              onChange={(event) => setPlaybackSpeedMs(Number(event.target.value))}
-            >
-              <option value="2000">Fast</option>
-              <option value="3000">Normal</option>
-              <option value="5000">Slow</option>
-            </select>
+          <label htmlFor="sim-events">
+            <div>
+              <h2>Event Stream (JSONL)</h2>
+              <p>Replay tool-call events and inspect deterministic findings plus anomaly-driven escalations.</p>
+            </div>
+            <textarea
+              id="sim-events"
+              value={eventsText}
+              onChange={(event) => setEventsText(event.target.value)}
+              spellCheck={false}
+            />
           </label>
         </div>
 
-        <div className="simulator-summary">
-          <span className="summary-chip summary-chip--neutral">
-            {summary.events} event{summary.events !== 1 ? "s" : ""}
-          </span>
-          {results.length > 0 && (
-            <>
-              <span className="summary-chip summary-chip--allow">{summary.allow} allow</span>
-              <span className="summary-chip summary-chip--approval">{summary.require_approval} approval gate</span>
-              <span className="summary-chip summary-chip--block">{summary.block} block</span>
-              <span className="summary-chip summary-chip--neutral">avg anomaly {summary.avgAnomaly}</span>
-            </>
-          )}
+        <section
+          className="simulator-policy-designer-section simulator-card simulator-card--designer"
+          aria-label="Policy Designer"
+        >
+          <div>
+            <h2>Policy Designer</h2>
+            <p>Build and adjust rules visually. Changes sync with the markdown policy above.</p>
+          </div>
+          <VisualPolicyDesigner policyText={policyText} onPolicyChange={setPolicyText} disabled={isRunning} />
+        </section>
+
+        <div className="simulator-toolbar simulator-card simulator-card--toolbar">
+          <button type="button" onClick={runSimulation} disabled={isRunning}>
+            {isRunning ? "Running…" : "Run Simulation"}
+          </button>
+
+          <div className="simulator-playback">
+            <button type="button" onClick={togglePlayback} disabled={results.length === 0}>
+              {isPlaying ? "Pause" : "Play"}
+            </button>
+            <button type="button" onClick={stepPlayback} disabled={results.length === 0}>
+              Step
+            </button>
+            <button type="button" onClick={resetPlayback} disabled={results.length === 0}>
+              Reset
+            </button>
+            <label htmlFor="sim-playback-speed">
+              Speed
+              <select
+                id="sim-playback-speed"
+                value={String(playbackSpeedMs)}
+                onChange={(event) => setPlaybackSpeedMs(Number(event.target.value))}
+              >
+                <option value="2000">Fast</option>
+                <option value="3000">Normal</option>
+                <option value="5000">Slow</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="simulator-summary">
+            <span className="summary-chip summary-chip--neutral">
+              {summary.events} event{summary.events !== 1 ? "s" : ""}
+            </span>
+            {results.length > 0 && (
+              <>
+                <span className="summary-chip summary-chip--allow">{summary.allow} allow</span>
+                <span className="summary-chip summary-chip--approval">{summary.require_approval} approval gate</span>
+                <span className="summary-chip summary-chip--block">{summary.block} block</span>
+                <span className="summary-chip summary-chip--neutral">avg anomaly {summary.avgAnomaly}</span>
+              </>
+            )}
+          </div>
         </div>
-      </div>
 
-      {error ? <p className="simulator-error">{error}</p> : null}
+        {error ? <p className="simulator-error simulator-card simulator-card--error">{error}</p> : null}
 
-      <section className="simulator-log-panel" aria-label="Live test log">
-        <h3>Live Log: What Was Tested</h3>
-        {liveLog.length === 0 ? (
-          <p className="simulator-log-panel__empty">Run simulation to stream event-by-event evaluation logs.</p>
-        ) : (
-          <ol className="simulator-log-list">
-            {liveLog.map((line, index) => (
-              <li key={`${line}-${index}`}>{line}</li>
-            ))}
-          </ol>
-        )}
-      </section>
+        <section className="simulator-log-panel simulator-card simulator-card--log" aria-label="Live test log">
+          <h3>Live Log: What Was Tested</h3>
+          {liveLog.length === 0 ? (
+            <p className="simulator-log-panel__empty">Run simulation to stream event-by-event evaluation logs.</p>
+          ) : (
+            <ol className="simulator-log-list">
+              {liveLog.map((line, index) => (
+                <li key={`${line}-${index}`}>{line}</li>
+              ))}
+            </ol>
+          )}
+        </section>
 
-      <div className="simulator-results">
-        {results.length === 0 && !error ? (
-          <p className="simulator-empty">Run a simulation to see per-event decisions and findings here.</p>
-        ) : (
-          results.map((entry) => (
-            <article
-              key={entry.index}
-              className={`decision-card decision-${entry.result.decision}${entry.index === activeResultIndex ? " decision-card--active" : ""}`}
-              onClick={() => {
-                setIsPlaying(false);
-                setIsStepping(false);
-                setActiveResultIndex(entry.index);
-                setPlaybackToken((t) => t + 1);
-              }}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
+        <div className="simulator-results simulator-card simulator-card--results">
+          {results.length === 0 && !error ? (
+            <p className="simulator-empty">Run a simulation to see per-event decisions and findings here.</p>
+          ) : (
+            results.map((entry) => (
+              <article
+                key={entry.index}
+                className={`decision-card decision-${entry.result.decision}${entry.index === activeResultIndex ? " decision-card--active" : ""}`}
+                onClick={() => {
                   setIsPlaying(false);
                   setIsStepping(false);
                   setActiveResultIndex(entry.index);
                   setPlaybackToken((t) => t + 1);
-                }
-              }}
-            >
-              <header>
-                <strong>#{entry.index + 1}</strong>
-                <span className={`decision-badge decision-badge--${entry.result.decision}`}>
-                  {entry.result.decision.replace("_", " ")}
-                </span>
-                <span className={`execution-badge execution-badge--${entry.execution}`}>
-                  {executionLabel(entry.execution)}
-                </span>
-                <span className="anomaly-chip">anomaly {entry.result.anomaly.score.toFixed(2)}</span>
-              </header>
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    setIsPlaying(false);
+                    setIsStepping(false);
+                    setActiveResultIndex(entry.index);
+                    setPlaybackToken((t) => t + 1);
+                  }
+                }}
+              >
+                <header>
+                  <strong>#{entry.index + 1}</strong>
+                  <span className={`decision-badge decision-badge--${entry.result.decision}`}>
+                    {entry.result.decision.replace("_", " ")}
+                  </span>
+                  <span className={`execution-badge execution-badge--${entry.execution}`}>
+                    {executionLabel(entry.execution)}
+                  </span>
+                  <span className="anomaly-chip">anomaly {entry.result.anomaly.score.toFixed(2)}</span>
+                </header>
 
-              {typeof entry.parsed.text === "string" ? (
-                <p className="decision-command">{entry.parsed.text}</p>
-              ) : (
-                <p className="decision-raw">{entry.raw}</p>
-              )}
-
-              <ul>
-                {entry.result.findings.length === 0 ? (
-                  <li>No deterministic rule findings.</li>
+                {typeof entry.parsed.text === "string" ? (
+                  <p className="decision-command">{entry.parsed.text}</p>
                 ) : (
-                  entry.result.findings.map((finding) => (
-                    <li key={`${entry.index}-${finding.ruleId}`}>
-                      <strong>{finding.ruleId}</strong> — {finding.why}
-                    </li>
-                  ))
+                  <p className="decision-raw">{entry.raw}</p>
                 )}
-              </ul>
 
-              {entry.result.anomaly.reasons.length > 0 ? (
-                <p className="decision-anomaly">Anomaly: {entry.result.anomaly.reasons.join("; ")}</p>
-              ) : null}
+                <ul>
+                  {entry.result.findings.length === 0 ? (
+                    <li>No deterministic rule findings.</li>
+                  ) : (
+                    entry.result.findings.map((finding) => (
+                      <li key={`${entry.index}-${finding.ruleId}`}>
+                        <strong>{finding.ruleId}</strong> — {finding.why}
+                      </li>
+                    ))
+                  )}
+                </ul>
 
-              <p className="decision-chain">
-                Chain: <strong>{entry.result.chainOfCommand.status}</strong>
-                {entry.chainEscalated ? " · escalated" : ""}
-              </p>
+                {entry.result.anomaly.reasons.length > 0 ? (
+                  <p className="decision-anomaly">Anomaly: {entry.result.anomaly.reasons.join("; ")}</p>
+                ) : null}
 
-              {entry.reviewReasons.length > 0 ? (
-                <p className="decision-chain">Review: {entry.reviewReasons.join("; ")}</p>
-              ) : null}
+                <p className="decision-chain">
+                  Chain: <strong>{entry.result.chainOfCommand.status}</strong>
+                  {entry.chainEscalated ? " · escalated" : ""}
+                </p>
 
-              {approvalReason(entry.parsed) ? (
-                <p className="decision-chain">Approval: {approvalReason(entry.parsed)}</p>
-              ) : null}
-            </article>
-          ))
-        )}
-      </div>
+                {entry.reviewReasons.length > 0 ? (
+                  <p className="decision-chain">Review: {entry.reviewReasons.join("; ")}</p>
+                ) : null}
+
+                {approvalReason(entry.parsed) ? (
+                  <p className="decision-chain">Approval: {approvalReason(entry.parsed)}</p>
+                ) : null}
+              </article>
+            ))
+          )}
+        </div>
+      </section>
     </section>
   );
 }

@@ -1,0 +1,146 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TripWire Public CTF API",
+    "version": "1.0.0",
+    "description": "Public API for TripWire challenge sessions and guard evaluation."
+  },
+  "servers": [{ "url": "/api/v1" }],
+  "components": {
+    "securitySchemes": {
+      "TripWireApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-tripwire-api-key"
+      },
+      "TripWireAdminKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-admin-key"
+      }
+    }
+  },
+  "paths": {
+    "/profiles/init": {
+      "post": {
+        "summary": "Create or load pseudonymous profile",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile initialized"
+          }
+        }
+      }
+    },
+    "/keys/current": {
+      "get": {
+        "summary": "Get current active API key metadata",
+        "responses": { "200": { "description": "Current key" } }
+      }
+    },
+    "/keys/rotate": {
+      "post": {
+        "summary": "Rotate active API key",
+        "responses": { "200": { "description": "Rotated key" } }
+      }
+    },
+    "/keys/revoke": {
+      "post": {
+        "summary": "Revoke active API key",
+        "responses": { "200": { "description": "Key revoked" } }
+      }
+    },
+    "/guard/evaluate": {
+      "post": {
+        "summary": "Evaluate tool call with TripWire native schema",
+        "security": [{ "TripWireApiKey": [] }],
+        "responses": { "200": { "description": "Guard evaluation" } }
+      }
+    },
+    "/guard/evaluate/openai": {
+      "post": {
+        "summary": "Evaluate tool call with OpenAI-compatible schema",
+        "security": [{ "TripWireApiKey": [] }],
+        "responses": { "200": { "description": "Guard evaluation" } }
+      }
+    },
+    "/challenge/sessions": {
+      "post": {
+        "summary": "Create challenge session",
+        "security": [{ "TripWireApiKey": [] }],
+        "responses": { "200": { "description": "Created session" } }
+      }
+    },
+    "/challenge/sessions/{sessionId}": {
+      "get": {
+        "summary": "Get challenge session status",
+        "security": [{ "TripWireApiKey": [] }],
+        "parameters": [{ "in": "path", "name": "sessionId", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Session state" } }
+      }
+    },
+    "/challenge/sessions/{sessionId}/turns": {
+      "post": {
+        "summary": "Run a chat turn in a challenge session",
+        "security": [{ "TripWireApiKey": [] }],
+        "parameters": [{ "in": "path", "name": "sessionId", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Turn result" } }
+      }
+    },
+    "/challenge/sessions/{sessionId}/tool-attempts": {
+      "post": {
+        "summary": "Submit direct tool-call attempt",
+        "security": [{ "TripWireApiKey": [] }],
+        "parameters": [{ "in": "path", "name": "sessionId", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Attempt result" } }
+      }
+    },
+    "/leaderboard/theme": {
+      "get": {
+        "summary": "Theme + mode leaderboard",
+        "security": [{ "TripWireApiKey": [] }],
+        "responses": { "200": { "description": "Leaderboard" } }
+      }
+    },
+    "/leaderboard/global": {
+      "get": {
+        "summary": "Global leaderboard",
+        "security": [{ "TripWireApiKey": [] }],
+        "responses": { "200": { "description": "Leaderboard" } }
+      }
+    },
+    "/admin/rl/candidates/{id}/approve": {
+      "post": {
+        "summary": "Approve and activate RL candidate",
+        "security": [{ "TripWireAdminKey": [] }],
+        "responses": { "200": { "description": "Candidate approved" } }
+      }
+    },
+    "/admin/rl/candidates/{id}/reject": {
+      "post": {
+        "summary": "Reject RL candidate",
+        "security": [{ "TripWireAdminKey": [] }],
+        "responses": { "200": { "description": "Candidate rejected" } }
+      }
+    },
+    "/admin/api-keys/{id}/training-opt-out": {
+      "post": {
+        "summary": "Toggle training opt-out allowlist for API key",
+        "security": [{ "TripWireAdminKey": [] }],
+        "responses": { "200": { "description": "Opt-out updated" } }
+      }
+    }
+  }
+}

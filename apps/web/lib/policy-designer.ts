@@ -1,4 +1,4 @@
-import { compilePolicy } from "@tripwire/guard";
+import { compilePolicy } from "@twire/guard";
 
 export type DesignerDecision = "allow" | "require_approval" | "block";
 export type DesignerSeverity = "low" | "med" | "high";

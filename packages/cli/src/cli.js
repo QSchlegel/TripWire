@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadRulepack, evalEvent } from '@tripwire/core';
+import { loadRulepack, evalEvent } from '@twire/core';
 
 function usage(code = 0) {
   console.log(`tripwire eval --rules rules.json --in events.jsonl [--out findings.jsonl]`);

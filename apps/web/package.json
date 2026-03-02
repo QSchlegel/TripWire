@@ -1,29 +1,39 @@
 {
-  "name": "@tripwire/web",
+  "name": "@twire/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "npm run build --workspace @tripwire/guard",
+    "predev": "npm run build --workspace @twire/guard",
     "dev": "next dev",
-    "prebuild": "npm run build --workspace @tripwire/guard",
+    "prebuild": "npm run build --workspace @twire/guard",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
+    "rl:train": "tsx scripts/rl-cron.ts"
   },
   "dependencies": {
     "@react-three/fiber": "^9.5.0",
-    "@tripwire/guard": "file:../../packages/guard",
+    "@prisma/client": "^6.8.2",
+    "@twire/guard": "file:../../packages/guard",
     "next": "^16.1.6",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "three": "^0.174.0"
+    "three": "^0.174.0",
+    "twire": "file:../../packages/guard"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.183.1",
-    "typescript": "^5.8.2"
+    "prisma": "^6.8.2",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.2",
+    "vitest": "^3.2.4"
   }
 }

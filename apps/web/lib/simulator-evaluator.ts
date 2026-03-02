@@ -2,13 +2,13 @@ import {
   GuardApprovalDeniedError,
   GuardApprovalRequiredError,
   GuardBlockedError
-} from "@tripwire/guard";
+} from "@twire/guard";
 import type {
   ChainOfCommandReviewResponse,
   GuardDecisionResult,
   GuardEngine,
   ToolCallContext
-} from "@tripwire/guard";
+} from "@twire/guard";
 import type {
   SimulatorApprovalDirective,
   SimulatorChainReviewStep,

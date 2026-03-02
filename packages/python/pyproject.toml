@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tripwire-guard"
+version = "0.1.0"
+description = "TripWire pre-tool-call guard engine for Python runtimes."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "TripWire" }]
+dependencies = ["PyYAML>=6.0"]
+keywords = ["agent", "guardrails", "security", "policy", "tripwire"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries"
+]
+
+[project.urls]
+Homepage = "https://tripwire.observer/"
+Repository = "https://github.com/QSchlegel/TripWire"
+
+[project.scripts]
+twire = "twire_guard.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

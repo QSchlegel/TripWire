@@ -1,14 +1,17 @@
 "use client";
 
-import { Canvas, useFrame } from "@react-three/fiber";
-import type { Decision } from "@tripwire/guard";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import type { Decision } from "@twire/guard";
 import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
 import type { SimulatorExecutionStatus } from "@/lib/simulator-smoke-cases";
 import { dampValue, decayValue, proximityFalloff } from "./node-animation-core";
 import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 export type ReducedMotionFallbackMode = "auto" | "always_static";
 export type SceneChainStatus = "not_applicable" | "eligible" | "approved_once" | "denied";
+export type ScenePresentationMode = "embedded" | "immersive_background";
+export type SceneCameraMode = "full" | "limited" | "none";
 
 export interface SimulatorDecisionSceneProps {
   activeDecision?: Decision;
@@ -21,6 +24,8 @@ export interface SimulatorDecisionSceneProps {
   isPlaying: boolean;
   onAnimationComplete?: (index: number) => void;
   reducedMotionFallbackMode?: ReducedMotionFallbackMode;
+  presentation?: ScenePresentationMode;
+  cameraMode?: SceneCameraMode;
 }
 
 type SceneMode = "canvas" | "static";
@@ -67,21 +72,532 @@ const SUPERVISOR_COLOR = DECISION_COLORS.require_approval;
 const DISPATCHER_COLOR = "#89d4ff";
 const NEUTRAL_FLOW_COLOR = "#8fb8b4";
 const MAX_DELTA = 0.05;
+const NODE_RING_PRIMARY_SPIN = 1.2;
+const NODE_RING_SECONDARY_SPIN = -0.92;
+const NODE_RING_WOBBLE_X = 0.2;
+const NODE_RING_WOBBLE_Y = 0.16;
+const NODE_RING_BREATH = 0.045;
+const NODE_RING_REACTIVE_BREATH = 0.08;
+const NODE_RING_PRIMARY_BASE_X = Math.PI / 2;
+const NODE_RING_PRIMARY_BASE_Y = 0;
+const NODE_RING_SECONDARY_BASE_X = Math.PI / 2;
+const NODE_RING_SECONDARY_BASE_Y = 0.95;
+const TRIPWIRE_GROUP_SPIN = 0.1;
+const TRIPWIRE_GROUP_WOBBLE_Z = 0.04;
+const TRIPWIRE_RING_OUTER_SPIN = 0.46;
+const TRIPWIRE_RING_MID_SPIN = -0.62;
+const TRIPWIRE_RING_INNER_SPIN = 0.87;
+const TRIPWIRE_RING_WOBBLE_X = 0.15;
+const TRIPWIRE_RING_WOBBLE_Y = 0.12;
 
-const NODE_POSITIONS: Record<
-  "model" | "tripwire" | "supervisor" | "dispatcher" | "allow" | "block",
-  THREE.Vector3
-> = {
-  model: new THREE.Vector3(-3.4, 0, 0),
-  tripwire: new THREE.Vector3(-1.2, 0, 0),
-  supervisor: new THREE.Vector3(0.8, 1.1, 0),
-  dispatcher: new THREE.Vector3(4.25, 1.1, 0),
-  allow: new THREE.Vector3(3.45, 0.35, 0),
-  block: new THREE.Vector3(3.45, -1.2, 0)
-};
-type NodeId = keyof typeof NODE_POSITIONS;
+type NodeId = "model" | "tripwire" | "supervisor" | "dispatcher" | "allow" | "block";
 type NodeActivityState = Record<NodeId, number>;
 const NODE_IDS: NodeId[] = ["model", "tripwire", "supervisor", "dispatcher", "allow", "block"];
+type NodeCoordinateTuple = [number, number, number];
+type SceneNodeCoordinates = Record<NodeId, NodeCoordinateTuple>;
+type SceneLabelProfileKey = "desktop" | "tablet" | "mobile";
+type ScenePathLifts = Record<PathKey, number>;
+
+interface SceneCameraProfile {
+  fov: number;
+  padding: number;
+  distanceScale: number;
+  minDistance: number;
+  maxDistance: number;
+  rotateSpeed: number;
+  targetOffset: [number, number, number];
+}
+
+export interface SceneLayoutProfile {
+  id: SceneLabelProfileKey;
+  nodes: SceneNodeCoordinates;
+  pathLifts: ScenePathLifts;
+  camera: SceneCameraProfile;
+  labelProfile: SceneLabelProfileKey;
+}
+
+export interface ResolvedSceneLayout {
+  id: SceneLabelProfileKey;
+  nodePositions: Record<NodeId, THREE.Vector3>;
+  pathLifts: ScenePathLifts;
+  camera: SceneCameraProfile;
+  labelProfile: SceneLabelProfileKey;
+}
+
+interface SceneLabelPalette {
+  textColor: string;
+  borderColor: string;
+  backgroundColor: string;
+}
+
+interface SceneLabelDefinition {
+  id: string;
+  anchorNode: NodeId;
+  palette: SceneLabelPalette;
+  variants: Record<SceneLabelProfileKey, SceneLabelVariant>;
+}
+
+interface SceneLabelVariant {
+  text: string;
+  worldOffset: [number, number, number];
+  scale: number;
+  opacity: number;
+}
+
+const LABEL_PALETTE_NEUTRAL: SceneLabelPalette = {
+  textColor: "rgba(216, 240, 239, 0.92)",
+  borderColor: "rgba(191, 224, 222, 0.28)",
+  backgroundColor: "rgba(9, 18, 28, 0.48)"
+};
+
+const LABEL_PALETTE_TRIPWIRE: SceneLabelPalette = {
+  textColor: "rgba(126, 248, 241, 0.94)",
+  borderColor: "rgba(0, 214, 202, 0.34)",
+  backgroundColor: "rgba(5, 21, 29, 0.5)"
+};
+
+const LABEL_PALETTE_DISPATCHER: SceneLabelPalette = {
+  textColor: "rgba(158, 230, 255, 0.94)",
+  borderColor: "rgba(137, 212, 255, 0.34)",
+  backgroundColor: "rgba(7, 18, 28, 0.5)"
+};
+
+const LABEL_PALETTE_ALLOW: SceneLabelPalette = {
+  textColor: "rgba(138, 248, 198, 0.94)",
+  borderColor: "rgba(29, 219, 150, 0.38)",
+  backgroundColor: "rgba(6, 21, 16, 0.52)"
+};
+
+const LABEL_PALETTE_APPROVAL: SceneLabelPalette = {
+  textColor: "rgba(255, 195, 137, 0.94)",
+  borderColor: "rgba(216, 137, 59, 0.36)",
+  backgroundColor: "rgba(33, 19, 8, 0.52)"
+};
+
+const LABEL_PALETTE_BLOCK: SceneLabelPalette = {
+  textColor: "rgba(255, 152, 172, 0.94)",
+  borderColor: "rgba(240, 64, 96, 0.4)",
+  backgroundColor: "rgba(35, 8, 16, 0.54)"
+};
+
+const SCENE_LABELS: SceneLabelDefinition[] = [
+  {
+    id: "model",
+    anchorNode: "model",
+    palette: LABEL_PALETTE_NEUTRAL,
+    variants: {
+      desktop: { text: "Model", worldOffset: [-0.42, -0.48, 0], scale: 0.24, opacity: 0.79 },
+      tablet: { text: "Model", worldOffset: [-0.34, -0.45, 0], scale: 0.28, opacity: 0.84 },
+      mobile: { text: "Model", worldOffset: [-0.28, -0.44, 0], scale: 0.34, opacity: 0.9 }
+    }
+  },
+  {
+    id: "tripwire",
+    anchorNode: "tripwire",
+    palette: LABEL_PALETTE_TRIPWIRE,
+    variants: {
+      desktop: { text: "TripWire", worldOffset: [0.62, -0.45, 0], scale: 0.27, opacity: 0.8 },
+      tablet: { text: "TripWire", worldOffset: [0.5, -0.47, 0], scale: 0.32, opacity: 0.86 },
+      mobile: { text: "TripWire", worldOffset: [0.4, -0.45, 0], scale: 0.38, opacity: 0.92 }
+    }
+  },
+  {
+    id: "dispatcher",
+    anchorNode: "dispatcher",
+    palette: LABEL_PALETTE_DISPATCHER,
+    variants: {
+      desktop: { text: "Dispatcher", worldOffset: [1.05, 0.04, 0], scale: 0.25, opacity: 0.8 },
+      tablet: { text: "Dispatcher", worldOffset: [0.86, 0.12, 0], scale: 0.3, opacity: 0.86 },
+      mobile: { text: "Dispatcher", worldOffset: [0.62, 0.2, 0], scale: 0.35, opacity: 0.92 }
+    }
+  },
+  {
+    id: "allow",
+    anchorNode: "allow",
+    palette: LABEL_PALETTE_ALLOW,
+    variants: {
+      desktop: { text: "Green: allow", worldOffset: [1.18, -0.01, 0], scale: 0.22, opacity: 0.79 },
+      tablet: { text: "Green: allow", worldOffset: [0.96, 0.08, 0], scale: 0.27, opacity: 0.85 },
+      mobile: { text: "Allow", worldOffset: [0.72, 0.18, 0], scale: 0.34, opacity: 0.9 }
+    }
+  },
+  {
+    id: "approval",
+    anchorNode: "supervisor",
+    palette: LABEL_PALETTE_APPROVAL,
+    variants: {
+      desktop: { text: "Amber: approval gate", worldOffset: [0.46, -0.5, 0], scale: 0.23, opacity: 0.8 },
+      tablet: { text: "Amber: approval gate", worldOffset: [0.4, -0.56, 0], scale: 0.28, opacity: 0.86 },
+      mobile: { text: "Approval gate", worldOffset: [0.28, -0.64, 0], scale: 0.35, opacity: 0.91 }
+    }
+  },
+  {
+    id: "block",
+    anchorNode: "block",
+    palette: LABEL_PALETTE_BLOCK,
+    variants: {
+      desktop: { text: "Red: block", worldOffset: [1.14, -0.03, 0], scale: 0.22, opacity: 0.8 },
+      tablet: { text: "Red: block", worldOffset: [0.95, -0.06, 0], scale: 0.27, opacity: 0.85 },
+      mobile: { text: "Block", worldOffset: [0.72, -0.06, 0], scale: 0.34, opacity: 0.9 }
+    }
+  }
+];
+
+const LAYOUT_MOBILE_MAX = 640;
+const LAYOUT_TABLET_MAX = 1024;
+const LAYOUT_DESKTOP_BLEND_END = 1440;
+const DEFAULT_VIEWPORT_WIDTH = 1280;
+
+const MOBILE_LAYOUT_PROFILE: SceneLayoutProfile = {
+  id: "mobile",
+  labelProfile: "mobile",
+  nodes: {
+    model: [-2.35, -0.02, 0],
+    tripwire: [-0.62, 0.02, 0],
+    supervisor: [0.54, 1.62, 0],
+    dispatcher: [2.86, 1.3, 0],
+    allow: [2.12, 0.68, 0],
+    block: [2.16, -1.86, 0]
+  },
+  pathLifts: {
+    modelToTripWire: 0.34,
+    tripwireToAllow: 0.52,
+    tripwireToBlock: -0.66,
+    tripwireToSupervisor: 0.62,
+    supervisorToAllow: -0.4,
+    supervisorToBlock: -0.98,
+    allowToDispatcher: 0.18
+  },
+  camera: {
+    fov: 50,
+    padding: 1.38,
+    distanceScale: 1.08,
+    minDistance: 10.4,
+    maxDistance: 30,
+    rotateSpeed: 0.62,
+    targetOffset: [0.05, -0.1, 0]
+  }
+};
+
+const TABLET_LAYOUT_PROFILE: SceneLayoutProfile = {
+  id: "tablet",
+  labelProfile: "tablet",
+  nodes: {
+    model: [-3, -0.02, 0],
+    tripwire: [-1.02, 0, 0],
+    supervisor: [0.72, 1.48, 0],
+    dispatcher: [3.62, 1.28, 0],
+    allow: [2.86, 0.58, 0],
+    block: [2.92, -1.68, 0]
+  },
+  pathLifts: {
+    modelToTripWire: 0.38,
+    tripwireToAllow: 0.58,
+    tripwireToBlock: -0.64,
+    tripwireToSupervisor: 0.58,
+    supervisorToAllow: -0.32,
+    supervisorToBlock: -0.86,
+    allowToDispatcher: 0.24
+  },
+  camera: {
+    fov: 47,
+    padding: 1.32,
+    distanceScale: 1.03,
+    minDistance: 7.8,
+    maxDistance: 26,
+    rotateSpeed: 0.68,
+    targetOffset: [0.2, -0.06, 0]
+  }
+};
+
+const DESKTOP_LAYOUT_PROFILE: SceneLayoutProfile = {
+  id: "desktop",
+  labelProfile: "desktop",
+  nodes: {
+    model: [-3.6, -0.02, 0],
+    tripwire: [-1.25, 0, 0],
+    supervisor: [0.95, 1.42, 0],
+    dispatcher: [4.35, 1.25, 0],
+    allow: [3.5, 0.46, 0],
+    block: [3.52, -1.55, 0]
+  },
+  pathLifts: {
+    modelToTripWire: 0.4,
+    tripwireToAllow: 0.62,
+    tripwireToBlock: -0.68,
+    tripwireToSupervisor: 0.6,
+    supervisorToAllow: -0.34,
+    supervisorToBlock: -0.9,
+    allowToDispatcher: 0.26
+  },
+  camera: {
+    fov: 44,
+    padding: 1.28,
+    distanceScale: 1,
+    minDistance: 5.8,
+    maxDistance: 23,
+    rotateSpeed: 0.7,
+    targetOffset: [0.34, -0.08, 0]
+  }
+};
+
+function lerpNumber(from: number, to: number, amount: number): number {
+  return from + (to - from) * THREE.MathUtils.clamp(amount, 0, 1);
+}
+
+function lerpTuple(from: NodeCoordinateTuple, to: NodeCoordinateTuple, amount: number): NodeCoordinateTuple {
+  return [
+    lerpNumber(from[0], to[0], amount),
+    lerpNumber(from[1], to[1], amount),
+    lerpNumber(from[2], to[2], amount)
+  ];
+}
+
+function interpolateNodeCoordinates(
+  from: SceneNodeCoordinates,
+  to: SceneNodeCoordinates,
+  amount: number
+): SceneNodeCoordinates {
+  return {
+    model: lerpTuple(from.model, to.model, amount),
+    tripwire: lerpTuple(from.tripwire, to.tripwire, amount),
+    supervisor: lerpTuple(from.supervisor, to.supervisor, amount),
+    dispatcher: lerpTuple(from.dispatcher, to.dispatcher, amount),
+    allow: lerpTuple(from.allow, to.allow, amount),
+    block: lerpTuple(from.block, to.block, amount)
+  };
+}
+
+function interpolatePathLifts(from: ScenePathLifts, to: ScenePathLifts, amount: number): ScenePathLifts {
+  return {
+    modelToTripWire: lerpNumber(from.modelToTripWire, to.modelToTripWire, amount),
+    tripwireToAllow: lerpNumber(from.tripwireToAllow, to.tripwireToAllow, amount),
+    tripwireToBlock: lerpNumber(from.tripwireToBlock, to.tripwireToBlock, amount),
+    tripwireToSupervisor: lerpNumber(from.tripwireToSupervisor, to.tripwireToSupervisor, amount),
+    supervisorToAllow: lerpNumber(from.supervisorToAllow, to.supervisorToAllow, amount),
+    supervisorToBlock: lerpNumber(from.supervisorToBlock, to.supervisorToBlock, amount),
+    allowToDispatcher: lerpNumber(from.allowToDispatcher, to.allowToDispatcher, amount)
+  };
+}
+
+function interpolateCameraProfile(
+  from: SceneCameraProfile,
+  to: SceneCameraProfile,
+  amount: number
+): SceneCameraProfile {
+  return {
+    fov: lerpNumber(from.fov, to.fov, amount),
+    padding: lerpNumber(from.padding, to.padding, amount),
+    distanceScale: lerpNumber(from.distanceScale, to.distanceScale, amount),
+    minDistance: lerpNumber(from.minDistance, to.minDistance, amount),
+    maxDistance: lerpNumber(from.maxDistance, to.maxDistance, amount),
+    rotateSpeed: lerpNumber(from.rotateSpeed, to.rotateSpeed, amount),
+    targetOffset: [
+      lerpNumber(from.targetOffset[0], to.targetOffset[0], amount),
+      lerpNumber(from.targetOffset[1], to.targetOffset[1], amount),
+      lerpNumber(from.targetOffset[2], to.targetOffset[2], amount)
+    ]
+  };
+}
+
+function dominantLayoutForWidth(viewportWidth: number): SceneLabelProfileKey {
+  if (viewportWidth <= 760) return "mobile";
+  if (viewportWidth <= 1240) return "tablet";
+  return "desktop";
+}
+
+function resolveSceneLayout(viewportWidth: number): ResolvedSceneLayout {
+  const width = Number.isFinite(viewportWidth) && viewportWidth > 0 ? viewportWidth : DEFAULT_VIEWPORT_WIDTH;
+  let fromProfile = DESKTOP_LAYOUT_PROFILE;
+  let toProfile = DESKTOP_LAYOUT_PROFILE;
+  let amount = 0;
+
+  if (width <= LAYOUT_MOBILE_MAX) {
+    fromProfile = MOBILE_LAYOUT_PROFILE;
+    toProfile = MOBILE_LAYOUT_PROFILE;
+  } else if (width <= LAYOUT_TABLET_MAX) {
+    fromProfile = MOBILE_LAYOUT_PROFILE;
+    toProfile = TABLET_LAYOUT_PROFILE;
+    amount = (width - LAYOUT_MOBILE_MAX) / (LAYOUT_TABLET_MAX - LAYOUT_MOBILE_MAX);
+  } else if (width <= LAYOUT_DESKTOP_BLEND_END) {
+    fromProfile = TABLET_LAYOUT_PROFILE;
+    toProfile = DESKTOP_LAYOUT_PROFILE;
+    amount = (width - LAYOUT_TABLET_MAX) / (LAYOUT_DESKTOP_BLEND_END - LAYOUT_TABLET_MAX);
+  }
+
+  const nodes = interpolateNodeCoordinates(fromProfile.nodes, toProfile.nodes, amount);
+  const pathLifts = interpolatePathLifts(fromProfile.pathLifts, toProfile.pathLifts, amount);
+  const camera = interpolateCameraProfile(fromProfile.camera, toProfile.camera, amount);
+  const layoutId = dominantLayoutForWidth(width);
+  const nodePositions: Record<NodeId, THREE.Vector3> = {
+    model: new THREE.Vector3(...nodes.model),
+    tripwire: new THREE.Vector3(...nodes.tripwire),
+    supervisor: new THREE.Vector3(...nodes.supervisor),
+    dispatcher: new THREE.Vector3(...nodes.dispatcher),
+    allow: new THREE.Vector3(...nodes.allow),
+    block: new THREE.Vector3(...nodes.block)
+  };
+
+  return {
+    id: layoutId,
+    nodePositions,
+    pathLifts,
+    camera,
+    labelProfile: layoutId
+  };
+}
+
+function resolveSceneLabels(labelProfile: SceneLabelProfileKey) {
+  return SCENE_LABELS.map((label) => {
+    const variant = label.variants[labelProfile];
+    return {
+      id: label.id,
+      anchorNode: label.anchorNode,
+      palette: label.palette,
+      text: variant.text,
+      worldOffset: variant.worldOffset,
+      scale: variant.scale,
+      opacity: variant.opacity
+    };
+  });
+}
+
+function roundedRectPath(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) {
+  const clampedRadius = Math.max(0, Math.min(radius, Math.min(width, height) / 2));
+  context.beginPath();
+  context.moveTo(x + clampedRadius, y);
+  context.lineTo(x + width - clampedRadius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + clampedRadius);
+  context.lineTo(x + width, y + height - clampedRadius);
+  context.quadraticCurveTo(x + width, y + height, x + width - clampedRadius, y + height);
+  context.lineTo(x + clampedRadius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - clampedRadius);
+  context.lineTo(x, y + clampedRadius);
+  context.quadraticCurveTo(x, y, x + clampedRadius, y);
+  context.closePath();
+}
+
+function createSceneLabelTexture(text: string, palette: SceneLabelPalette): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Unable to create label texture context");
+  }
+
+  const devicePixelRatio = typeof window === "undefined" ? 1 : Math.min(window.devicePixelRatio || 1, 3);
+  const supersample = 2;
+  const pixelRatio = Math.max(1, Math.min(devicePixelRatio * supersample, 6));
+  const fontSize = 20;
+  const padX = 20;
+  const padY = 12;
+  const radius = 16;
+  const strokeWidth = 1.3;
+
+  context.font = `700 ${fontSize}px "IBM Plex Mono", ui-monospace, monospace`;
+  context.textBaseline = "middle";
+  const textWidth = Math.ceil(context.measureText(text).width);
+  const width = textWidth + padX * 2;
+  const height = fontSize + padY * 2;
+
+  canvas.width = Math.max(1, Math.round(width * pixelRatio));
+  canvas.height = Math.max(1, Math.round(height * pixelRatio));
+
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.lineJoin = "round";
+  context.lineCap = "round";
+  context.clearRect(0, 0, width, height);
+  roundedRectPath(context, strokeWidth / 2, strokeWidth / 2, width - strokeWidth, height - strokeWidth, radius);
+  context.fillStyle = palette.backgroundColor;
+  context.fill();
+  context.strokeStyle = palette.borderColor;
+  context.lineWidth = strokeWidth;
+  context.stroke();
+
+  context.fillStyle = palette.textColor;
+  context.font = `700 ${fontSize}px "IBM Plex Mono", ui-monospace, monospace`;
+  context.textBaseline = "middle";
+  context.textAlign = "center";
+  context.fillText(text, width / 2, height / 2 + 0.25);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  texture.anisotropy = 16;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function SceneLabelSprite({
+  nodePositions,
+  anchorNode,
+  text,
+  worldOffset,
+  scale,
+  palette,
+  opacity
+}: {
+  nodePositions: Record<NodeId, THREE.Vector3>;
+  anchorNode: NodeId;
+  text: string;
+  worldOffset: [number, number, number];
+  scale: number;
+  palette: SceneLabelPalette;
+  opacity: number;
+}) {
+  const spriteRef = useRef<THREE.Sprite>(null);
+  const materialRef = useRef<THREE.SpriteMaterial>(null);
+  const worldPosition = useMemo(
+    () =>
+      nodePositions[anchorNode]
+        .clone()
+        .add(new THREE.Vector3(worldOffset[0], worldOffset[1], worldOffset[2])),
+    [anchorNode, nodePositions, worldOffset]
+  );
+  const texture = useMemo(() => createSceneLabelTexture(text, palette), [palette, text]);
+  const spriteScale = useMemo<[number, number, number]>(() => {
+    const image = texture.image as HTMLCanvasElement;
+    const aspect = image.width / image.height;
+    return [scale * aspect, scale, 1];
+  }, [scale, texture.image]);
+
+  useEffect(() => {
+    return () => {
+      texture.dispose();
+      materialRef.current?.dispose();
+    };
+  }, [texture]);
+
+  useFrame(({ camera }) => {
+    if (!spriteRef.current) return;
+    spriteRef.current.position.copy(worldPosition);
+    spriteRef.current.quaternion.copy(camera.quaternion);
+  });
+
+  return (
+    <sprite ref={spriteRef} scale={spriteScale}>
+      <spriteMaterial
+        ref={materialRef}
+        map={texture}
+        transparent
+        opacity={opacity}
+        depthWrite={false}
+        depthTest={false}
+        toneMapped={false}
+      />
+    </sprite>
+  );
+}
 
 function makeNodeActivityState(): NodeActivityState {
   return {
@@ -203,15 +719,15 @@ function curve(start: THREE.Vector3, end: THREE.Vector3, lift: number): THREE.Qu
   );
 }
 
-function makePaths(): ScenePaths {
+function makePaths(nodePositions: Record<NodeId, THREE.Vector3>, pathLifts: ScenePathLifts): ScenePaths {
   return {
-    modelToTripWire: curve(NODE_POSITIONS.model, NODE_POSITIONS.tripwire, 0.35),
-    tripwireToAllow: curve(NODE_POSITIONS.tripwire, NODE_POSITIONS.allow, 0.52),
-    tripwireToBlock: curve(NODE_POSITIONS.tripwire, NODE_POSITIONS.block, -0.55),
-    tripwireToSupervisor: curve(NODE_POSITIONS.tripwire, NODE_POSITIONS.supervisor, 0.48),
-    supervisorToAllow: curve(NODE_POSITIONS.supervisor, NODE_POSITIONS.allow, -0.22),
-    supervisorToBlock: curve(NODE_POSITIONS.supervisor, NODE_POSITIONS.block, -0.72),
-    allowToDispatcher: curve(NODE_POSITIONS.allow, NODE_POSITIONS.dispatcher, 0.18)
+    modelToTripWire: curve(nodePositions.model, nodePositions.tripwire, pathLifts.modelToTripWire),
+    tripwireToAllow: curve(nodePositions.tripwire, nodePositions.allow, pathLifts.tripwireToAllow),
+    tripwireToBlock: curve(nodePositions.tripwire, nodePositions.block, pathLifts.tripwireToBlock),
+    tripwireToSupervisor: curve(nodePositions.tripwire, nodePositions.supervisor, pathLifts.tripwireToSupervisor),
+    supervisorToAllow: curve(nodePositions.supervisor, nodePositions.allow, pathLifts.supervisorToAllow),
+    supervisorToBlock: curve(nodePositions.supervisor, nodePositions.block, pathLifts.supervisorToBlock),
+    allowToDispatcher: curve(nodePositions.allow, nodePositions.dispatcher, pathLifts.allowToDispatcher)
   };
 }
 
@@ -299,11 +815,29 @@ function NodeMarker({
     }
 
     if (ringPrimaryRef.current) {
-      ringPrimaryRef.current.rotation.z += dt * 0.75;
+      ringPrimaryRef.current.rotation.z += dt * NODE_RING_PRIMARY_SPIN;
+      ringPrimaryRef.current.rotation.x =
+        NODE_RING_PRIMARY_BASE_X + Math.sin(t * 0.84 + phase * 0.7) * (NODE_RING_WOBBLE_X + reactive * 0.07);
+      ringPrimaryRef.current.rotation.y =
+        NODE_RING_PRIMARY_BASE_Y + Math.cos(t * 0.62 + phase * 0.35) * (NODE_RING_WOBBLE_Y + reactive * 0.04);
+      const ringScale =
+        1 +
+        Math.sin(t * 1.16 + phase * 0.5) * NODE_RING_BREATH +
+        reactive * NODE_RING_REACTIVE_BREATH;
+      ringPrimaryRef.current.scale.setScalar(ringScale);
     }
 
     if (ringSecondaryRef.current) {
-      ringSecondaryRef.current.rotation.z -= dt * 0.55;
+      ringSecondaryRef.current.rotation.z += dt * NODE_RING_SECONDARY_SPIN;
+      ringSecondaryRef.current.rotation.x =
+        NODE_RING_SECONDARY_BASE_X + Math.cos(t * 0.7 + phase * 0.65) * (NODE_RING_WOBBLE_X * 0.8 + reactive * 0.06);
+      ringSecondaryRef.current.rotation.y =
+        NODE_RING_SECONDARY_BASE_Y + Math.sin(t * 0.92 + phase * 0.3) * (NODE_RING_WOBBLE_Y * 0.75 + reactive * 0.04);
+      const ringScale =
+        1 +
+        Math.cos(t * 1.02 + phase * 0.4) * (NODE_RING_BREATH * 0.82) +
+        reactive * (NODE_RING_REACTIVE_BREATH * 0.75);
+      ringSecondaryRef.current.scale.setScalar(ringScale);
     }
 
     if (coreMaterialRef.current) {
@@ -311,11 +845,13 @@ function NodeMarker({
     }
 
     if (ringPrimaryMaterialRef.current) {
-      ringPrimaryMaterialRef.current.emissiveIntensity = 0.11 + (Math.cos(t * 0.95) + 1) * 0.06 + reactive * 0.13;
+      ringPrimaryMaterialRef.current.emissiveIntensity =
+        0.14 + (Math.cos(t * 1.18) + 1) * 0.09 + reactive * 0.18;
     }
 
     if (ringSecondaryMaterialRef.current) {
-      ringSecondaryMaterialRef.current.emissiveIntensity = 0.08 + (Math.sin(t * 0.9) + 1) * 0.05 + reactive * 0.1;
+      ringSecondaryMaterialRef.current.emissiveIntensity =
+        0.1 + (Math.sin(t * 1.06 + 0.2) + 1) * 0.075 + reactive * 0.14;
     }
 
     if (haloMaterialRef.current) {
@@ -389,24 +925,58 @@ function TripwireGateMarker({ position }: { position: THREE.Vector3 }) {
     [position]
   );
   const groupRef = useRef<THREE.Group>(null);
+  const outerRingRef = useRef<THREE.Mesh>(null);
+  const middleRingRef = useRef<THREE.Mesh>(null);
+  const innerRingRef = useRef<THREE.Mesh>(null);
+  const outerMatRef = useRef<THREE.MeshStandardMaterial>(null);
+  const middleMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const innerMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const coreMatRef = useRef<THREE.MeshBasicMaterial>(null);
 
   useFrame((state, delta) => {
     const dt = Math.min(delta, MAX_DELTA);
     if (!groupRef.current) return;
+    const t = state.clock.elapsedTime;
 
-    groupRef.current.rotation.y += dt * 0.1;
-    groupRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.18) * 0.03;
-    groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 0.85) * 0.02;
+    groupRef.current.rotation.y += dt * TRIPWIRE_GROUP_SPIN;
+    groupRef.current.rotation.z = Math.sin(t * 0.18) * TRIPWIRE_GROUP_WOBBLE_Z;
+    groupRef.current.position.y = Math.sin(t * 0.85) * 0.02;
+
+    if (outerRingRef.current) {
+      outerRingRef.current.rotation.z += dt * TRIPWIRE_RING_OUTER_SPIN;
+      outerRingRef.current.rotation.x = Math.PI / 2 + Math.sin(t * 0.52) * TRIPWIRE_RING_WOBBLE_X;
+      outerRingRef.current.rotation.y = Math.sin(t * 0.38 + 0.5) * TRIPWIRE_RING_WOBBLE_Y;
+    }
+
+    if (middleRingRef.current) {
+      middleRingRef.current.rotation.z += dt * TRIPWIRE_RING_MID_SPIN;
+      middleRingRef.current.rotation.x = Math.PI / 2 + Math.cos(t * 0.64 + 0.45) * (TRIPWIRE_RING_WOBBLE_X * 0.88);
+      middleRingRef.current.rotation.y = 0.7 + Math.sin(t * 0.48 + 0.9) * (TRIPWIRE_RING_WOBBLE_Y * 0.85);
+    }
+
+    if (innerRingRef.current) {
+      innerRingRef.current.rotation.z += dt * TRIPWIRE_RING_INNER_SPIN;
+      innerRingRef.current.rotation.x = Math.PI / 2 + Math.sin(t * 0.92 + 0.8) * (TRIPWIRE_RING_WOBBLE_X * 0.8);
+      innerRingRef.current.rotation.y = -0.7 + Math.cos(t * 0.58 + 0.2) * (TRIPWIRE_RING_WOBBLE_Y * 0.8);
+    }
+
+    if (outerMatRef.current) {
+      const pulse = 0.5 + 0.5 * Math.sin(t * 1.2);
+      outerMatRef.current.emissiveIntensity = 0.34 + pulse * 0.28;
+    }
+
+    if (middleMatRef.current) {
+      const pulse = 0.5 + 0.5 * Math.cos(t * 1.35 + 0.2);
+      middleMatRef.current.emissiveIntensity = 0.4 + pulse * 0.3;
+    }
 
     if (innerMatRef.current) {
-      const pulse = 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 1.5);
-      innerMatRef.current.emissiveIntensity = 0.34 + pulse * 0.42;
+      const pulse = 0.5 + 0.5 * Math.sin(t * 1.5 + 0.4);
+      innerMatRef.current.emissiveIntensity = 0.34 + pulse * 0.4;
     }
 
     if (coreMatRef.current) {
-      const phase = (state.clock.elapsedTime % 2.8) / 2.8;
+      const phase = (t % 2.8) / 2.8;
       const eased = 0.5 - 0.5 * Math.cos(phase * Math.PI * 2);
       coreMatRef.current.opacity = 0.82 - eased * 0.22;
     }
@@ -414,9 +984,10 @@ function TripwireGateMarker({ position }: { position: THREE.Vector3 }) {
 
   return (
     <group ref={groupRef} position={tuple} scale={[0.13, 0.13, 0.13]}>
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
+      <mesh ref={outerRingRef} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[2.4, 0.055, 8, 72]} />
         <meshStandardMaterial
+          ref={outerMatRef}
           color="#0b4a2b"
           metalness={0.75}
           roughness={0.2}
@@ -425,9 +996,10 @@ function TripwireGateMarker({ position }: { position: THREE.Vector3 }) {
         />
       </mesh>
 
-      <mesh rotation={[Math.PI / 2, 0.7, 0]}>
+      <mesh ref={middleRingRef} rotation={[Math.PI / 2, 0.7, 0]}>
         <torusGeometry args={[1.65, 0.045, 8, 56]} />
         <meshStandardMaterial
+          ref={middleMatRef}
           color="#6b3c00"
           metalness={0.65}
           roughness={0.25}
@@ -436,7 +1008,7 @@ function TripwireGateMarker({ position }: { position: THREE.Vector3 }) {
         />
       </mesh>
 
-      <mesh rotation={[Math.PI / 2, -0.7, 0]}>
+      <mesh ref={innerRingRef} rotation={[Math.PI / 2, -0.7, 0]}>
         <torusGeometry args={[0.95, 0.038, 8, 48]} />
         <meshStandardMaterial
           ref={innerMatRef}
@@ -474,6 +1046,7 @@ function FlowPacket({
   route,
   playbackKey,
   paths,
+  nodePositions,
   eventDurationMs,
   isPlaying,
   activeIndex,
@@ -483,6 +1056,7 @@ function FlowPacket({
   route: RouteDefinition;
   playbackKey: string;
   paths: ScenePaths;
+  nodePositions: Record<NodeId, THREE.Vector3>;
   eventDurationMs: number;
   isPlaying: boolean;
   activeIndex: number;
@@ -511,10 +1085,10 @@ function FlowPacket({
     progressRef.current = 0;
     completionSentRef.current = false;
     if (packetRef.current) {
-      packetRef.current.position.copy(NODE_POSITIONS.model);
+      packetRef.current.position.copy(nodePositions.model);
       packetRef.current.visible = route.segments.length > 0;
     }
-  }, [playbackKey, route.id, route.segments.length]);
+  }, [nodePositions, playbackKey, route.id, route.segments.length]);
 
   useFrame((state, delta) => {
     const packet = packetRef.current;
@@ -585,6 +1159,7 @@ function FlowPacket({
 
 function DecisionFlowScene({
   route,
+  layout,
   playbackKey,
   eventDurationMs,
   isPlaying,
@@ -592,13 +1167,18 @@ function DecisionFlowScene({
   onAnimationComplete
 }: {
   route: RouteDefinition;
+  layout: ResolvedSceneLayout;
   playbackKey: string;
   eventDurationMs: number;
   isPlaying: boolean;
   activeIndex: number;
   onAnimationComplete?: (index: number) => void;
 }) {
-  const paths = useMemo(() => makePaths(), []);
+  const paths = useMemo(
+    () => makePaths(layout.nodePositions, layout.pathLifts),
+    [layout.nodePositions, layout.pathLifts]
+  );
+  const labels = useMemo(() => resolveSceneLabels(layout.labelProfile), [layout.labelProfile]);
   const nodeActivityRef = useRef<NodeActivityState>(makeNodeActivityState());
 
   useFrame((_, delta) => {
@@ -654,16 +1234,16 @@ function DecisionFlowScene({
       <NodeMarker
         nodeId="model"
         activityRef={nodeActivityRef}
-        position={NODE_POSITIONS.model}
+        position={layout.nodePositions.model}
         color="#9fd2cf"
         pulseStrength={0.035}
         pulseSpeed={1.4}
       />
-      <TripwireGateMarker position={NODE_POSITIONS.tripwire} />
+      <TripwireGateMarker position={layout.nodePositions.tripwire} />
       <NodeMarker
         nodeId="supervisor"
         activityRef={nodeActivityRef}
-        position={NODE_POSITIONS.supervisor}
+        position={layout.nodePositions.supervisor}
         color={SUPERVISOR_COLOR}
         pulseStrength={0.065}
         pulseSpeed={1.95}
@@ -671,7 +1251,7 @@ function DecisionFlowScene({
       <NodeMarker
         nodeId="dispatcher"
         activityRef={nodeActivityRef}
-        position={NODE_POSITIONS.dispatcher}
+        position={layout.nodePositions.dispatcher}
         color={DISPATCHER_COLOR}
         pulseStrength={0.04}
         pulseSpeed={1.55}
@@ -679,7 +1259,7 @@ function DecisionFlowScene({
       <NodeMarker
         nodeId="allow"
         activityRef={nodeActivityRef}
-        position={NODE_POSITIONS.allow}
+        position={layout.nodePositions.allow}
         color={DECISION_COLORS.allow}
         pulseStrength={0.05}
         pulseSpeed={1.9}
@@ -687,23 +1267,36 @@ function DecisionFlowScene({
       <NodeMarker
         nodeId="block"
         activityRef={nodeActivityRef}
-        position={NODE_POSITIONS.block}
+        position={layout.nodePositions.block}
         color={DECISION_COLORS.block}
         pulseStrength={0.05}
         pulseSpeed={1.9}
       />
+      {labels.map((label) => (
+        <SceneLabelSprite
+          key={label.id}
+          nodePositions={layout.nodePositions}
+          anchorNode={label.anchorNode}
+          text={label.text}
+          worldOffset={label.worldOffset}
+          scale={label.scale}
+          palette={label.palette}
+          opacity={label.opacity}
+        />
+      ))}
 
       <FlowPacket
         route={route}
         playbackKey={playbackKey}
         paths={paths}
+        nodePositions={layout.nodePositions}
         eventDurationMs={eventDurationMs}
         isPlaying={isPlaying}
         activeIndex={activeIndex}
         onPacketFrame={(position) => {
           for (let i = 0; i < NODE_IDS.length; i += 1) {
             const nodeId = NODE_IDS[i];
-            const influence = proximityFalloff(position.distanceTo(NODE_POSITIONS[nodeId]), 1.1);
+            const influence = proximityFalloff(position.distanceTo(layout.nodePositions[nodeId]), 1.1);
             if (influence > nodeActivityRef.current[nodeId]) {
               nodeActivityRef.current[nodeId] = influence;
             }
@@ -713,6 +1306,118 @@ function DecisionFlowScene({
       />
     </>
   );
+}
+
+interface SceneBounds {
+  width: number;
+  height: number;
+  center: THREE.Vector3;
+}
+
+function getSceneBounds(nodePositions: Record<NodeId, THREE.Vector3>): SceneBounds {
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i < NODE_IDS.length; i += 1) {
+    const node = nodePositions[NODE_IDS[i]];
+    if (node.x < minX) minX = node.x;
+    if (node.x > maxX) maxX = node.x;
+    if (node.y < minY) minY = node.y;
+    if (node.y > maxY) maxY = node.y;
+  }
+
+  return {
+    width: maxX - minX,
+    height: maxY - minY,
+    center: new THREE.Vector3((minX + maxX) * 0.5, (minY + maxY) * 0.5, 0)
+  };
+}
+
+function fitDistanceForBounds(bounds: SceneBounds, aspect: number, fovDeg: number, padding: number): number {
+  const halfFovRadians = THREE.MathUtils.degToRad(fovDeg * 0.5);
+  const paddedHeight = Math.max(bounds.height * padding, 1.8);
+  const paddedWidth = Math.max(bounds.width * padding, 2.6);
+  const safeAspect = Math.max(aspect, 0.35);
+  const heightDistance = paddedHeight / (2 * Math.tan(halfFovRadians));
+  const widthDistance = paddedWidth / (2 * Math.tan(halfFovRadians) * safeAspect);
+  return Math.max(heightDistance, widthDistance);
+}
+
+function SceneCameraControls({
+  cameraMode,
+  layout,
+  viewportWidth
+}: {
+  cameraMode: SceneCameraMode;
+  layout: ResolvedSceneLayout;
+  viewportWidth: number;
+}) {
+  const { camera, gl } = useThree();
+  const controlsRef = useRef<OrbitControls | null>(null);
+  const scratchTarget = useMemo(() => new THREE.Vector3(), []);
+
+  useEffect(() => {
+    const controls = new OrbitControls(camera, gl.domElement);
+    controlsRef.current = controls;
+    const isMobileViewport = viewportWidth <= LAYOUT_MOBILE_MAX;
+    const bounds = getSceneBounds(layout.nodePositions);
+    const aspect = gl.domElement.clientWidth / Math.max(gl.domElement.clientHeight, 1);
+    const fittedDistance =
+      fitDistanceForBounds(bounds, aspect, layout.camera.fov, layout.camera.padding) * layout.camera.distanceScale;
+
+    controls.enableDamping = cameraMode !== "none";
+    controls.dampingFactor = 0.08;
+    controls.enabled = cameraMode !== "none";
+    controls.enableRotate = cameraMode !== "none";
+    controls.rotateSpeed = layout.camera.rotateSpeed;
+    controls.enableZoom = cameraMode === "full";
+    controls.enablePan = cameraMode === "full";
+    controls.zoomSpeed = 0.95;
+    controls.panSpeed = 0.8;
+
+    if (cameraMode === "limited") {
+      controls.mouseButtons = {
+        LEFT: THREE.MOUSE.ROTATE,
+        MIDDLE: THREE.MOUSE.ROTATE,
+        RIGHT: THREE.MOUSE.ROTATE
+      };
+      controls.touches = {
+        ONE: THREE.TOUCH.ROTATE,
+        TWO: isMobileViewport ? THREE.TOUCH.ROTATE : THREE.TOUCH.DOLLY_PAN
+      };
+    }
+
+    if (camera instanceof THREE.PerspectiveCamera) {
+      camera.fov = layout.camera.fov;
+      camera.updateProjectionMatrix();
+    }
+
+    scratchTarget.copy(bounds.center);
+    scratchTarget.add(
+      new THREE.Vector3(layout.camera.targetOffset[0], layout.camera.targetOffset[1], layout.camera.targetOffset[2])
+    );
+
+    controls.minDistance = Math.min(layout.camera.minDistance, fittedDistance);
+    controls.maxDistance = Math.max(layout.camera.maxDistance, fittedDistance * 1.9);
+    controls.target.copy(scratchTarget);
+
+    camera.position.set(scratchTarget.x, scratchTarget.y, fittedDistance);
+    camera.lookAt(scratchTarget);
+    controls.update();
+
+    return () => {
+      controls.dispose();
+      controlsRef.current = null;
+    };
+  }, [camera, cameraMode, gl, layout, scratchTarget, viewportWidth]);
+
+  useFrame(() => {
+    controlsRef.current?.update();
+  });
+
+  return null;
 }
 
 function staticMessage(reason: StaticReason): string {
@@ -731,10 +1436,15 @@ export function SimulatorDecisionScene({
   eventDurationMs,
   isPlaying,
   onAnimationComplete,
-  reducedMotionFallbackMode = "auto"
+  reducedMotionFallbackMode = "auto",
+  presentation = "embedded",
+  cameraMode = "full"
 }: SimulatorDecisionSceneProps) {
   const [sceneMode, setSceneMode] = useState<SceneMode>("static");
   const [staticReason, setStaticReason] = useState<StaticReason>("no-webgl");
+  const [viewportWidth, setViewportWidth] = useState<number>(() =>
+    typeof window === "undefined" ? DEFAULT_VIEWPORT_WIDTH : window.innerWidth
+  );
   const route = useMemo(
     () =>
       resolveVisualRoute({
@@ -744,6 +1454,27 @@ export function SimulatorDecisionScene({
       }),
     [activeChainStatus, activeDecision, activeExecution]
   );
+  const layout = useMemo(() => resolveSceneLayout(viewportWidth), [viewportWidth]);
+
+  useEffect(() => {
+    let frame = 0;
+    const syncWidth = () => {
+      if (frame !== 0) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        setViewportWidth(window.innerWidth);
+      });
+    };
+
+    syncWidth();
+    window.addEventListener("resize", syncWidth, { passive: true });
+    window.addEventListener("orientationchange", syncWidth);
+
+    return () => {
+      if (frame !== 0) window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", syncWidth);
+      window.removeEventListener("orientationchange", syncWidth);
+    };
+  }, []);
 
   useEffect(() => {
     if (reducedMotionFallbackMode === "always_static") {
@@ -770,8 +1501,13 @@ export function SimulatorDecisionScene({
   }, [reducedMotionFallbackMode]);
 
   if (sceneMode === "static") {
+    const fallbackClassName =
+      presentation === "immersive_background"
+        ? "decision-scene-fallback decision-scene-fallback--immersive-background"
+        : "decision-scene-fallback";
+
     return (
-      <div className="decision-scene-fallback" role="img" aria-label="Static decision flow diagram">
+      <div className={fallbackClassName} role="img" aria-label="Static decision flow diagram">
         <div className="decision-scene-fallback__nodes">
           <span className="decision-scene-fallback__node">Model</span>
           <span className="decision-scene-fallback__arrow">-&gt;</span>
@@ -814,17 +1550,23 @@ export function SimulatorDecisionScene({
 
   // Include event index so autoplay index changes trigger a hard per-event animation reset.
   const playbackKey = `${playbackToken}:${activeIndex}`;
+  const canvasWrapClassName =
+    presentation === "immersive_background"
+      ? "decision-scene-canvas-wrap decision-scene-canvas-wrap--immersive-background"
+      : "decision-scene-canvas-wrap";
 
   return (
-    <div className="decision-scene-canvas-wrap">
+    <div className={canvasWrapClassName}>
       <Canvas
-        camera={{ position: [0, 0, 6], fov: 44 }}
+        camera={{ position: [0, 0, 12], fov: layout.camera.fov }}
         gl={{ alpha: true, antialias: true, powerPreference: "high-performance" }}
-        dpr={1}
+        dpr={[1, 2]}
         performance={{ min: 0.5 }}
       >
+        <SceneCameraControls cameraMode={cameraMode} layout={layout} viewportWidth={viewportWidth} />
         <DecisionFlowScene
           route={route}
+          layout={layout}
           playbackKey={playbackKey}
           eventDurationMs={eventDurationMs}
           isPlaying={isPlaying}
@@ -832,13 +1574,6 @@ export function SimulatorDecisionScene({
           onAnimationComplete={onAnimationComplete}
         />
       </Canvas>
-
-      <div className="decision-scene-label decision-scene-label--model">Model</div>
-      <div className="decision-scene-label decision-scene-label--tripwire">TripWire</div>
-      <div className="decision-scene-label decision-scene-label--dispatcher">Dispatcher</div>
-      <div className="decision-scene-label decision-scene-label--allow">Green: allow</div>
-      <div className="decision-scene-label decision-scene-label--approval">Amber: approval gate</div>
-      <div className="decision-scene-label decision-scene-label--block">Red: block</div>
     </div>
   );
 }

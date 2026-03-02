@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SiteNav } from "@/components/site-nav";
 import { HeroSceneClient } from "@/components/hero-scene-client";
+import { InstallTabs } from "@/components/install-tabs";
 
 export default function HomePage() {
   return (
@@ -23,15 +24,28 @@ export default function HomePage() {
           </p>
           <p>Join as a maintainer; bots are welcome too ;)</p>
 
+          <div className="hero-setup">
+            <p className="setup-label">Install TripWire Guard</p>
+            <InstallTabs />
+            <a
+              href="https://www.npmjs.com/package/@twire/guard"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="button button-secondary"
+            >
+              View on npm
+            </a>
+          </div>
+
           <div className="hero-actions">
-            <Link href="/simulator" className="button button-primary">
-              Launch Simulator
+            <Link href="/playground" className="button button-primary">
+              Launch Playground
             </Link>
             <Link href="/docs" className="button button-secondary">
-              Docs + Downloads
+              Docs
             </Link>
-            <Link href="/research" className="button button-secondary">
-              View Research Matrix
+            <Link href="/docs#api" className="button button-secondary">
+              API Quickstart
             </Link>
           </div>
 
@@ -80,6 +94,7 @@ export default function HomePage() {
             </p>
           </article>
         </section>
+
       </main>
     </>
   );

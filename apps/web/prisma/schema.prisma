@@ -1,0 +1,246 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ApiKeyStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum ChallengeTheme {
+  devops
+  wallet
+  support
+}
+
+enum ChallengeMode {
+  vulnerable
+  hardened
+}
+
+enum ChallengeSessionInputType {
+  chat
+  tool
+  mixed
+}
+
+enum ChallengeSessionStatus {
+  active
+  solved
+  archived
+}
+
+enum AttemptSource {
+  chat
+  tool
+}
+
+enum ModerationStatus {
+  clean
+  blocked
+}
+
+enum DecisionStatus {
+  allow
+  require_approval
+  block
+  blocked_by_moderation
+  error
+}
+
+enum ChallengeGoalType {
+  flag_exfiltration
+  blocked_action_bypass
+}
+
+enum LeaderboardScope {
+  THEME_MODE
+  GLOBAL
+}
+
+enum RlCandidateStatus {
+  pending
+  approved
+  rejected
+  applied
+}
+
+enum RlCandidateType {
+  prompt_patch
+  policy_patch
+  combined
+}
+
+model Profile {
+  id        String             @id @default(cuid())
+  handle    String             @unique
+  createdAt DateTime           @default(now())
+  lastSeenAt DateTime          @default(now())
+
+  apiKeys   ApiKey[]
+  sessions  ChallengeSession[]
+  attempts  ChallengeAttempt[]
+  outcomes  ChallengeOutcome[]
+  leaderboardEntries LeaderboardEntry[]
+}
+
+model ApiKey {
+  id               String       @id @default(cuid())
+  profileId        String
+  prefix           String       @unique
+  keyHash          String       @unique
+  status           ApiKeyStatus @default(ACTIVE)
+  isTrainingOptOut Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  revokedAt        DateTime?
+
+  profile          Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, status])
+}
+
+model ChallengeSession {
+  id               String                    @id @default(cuid())
+  profileId        String
+  theme            ChallengeTheme
+  mode             ChallengeMode
+  inputType        ChallengeSessionInputType
+  status           ChallengeSessionStatus    @default(active)
+  startedAt        DateTime                  @default(now())
+  endedAt          DateTime?
+  dailyFlagVersion String
+
+  profile          Profile                   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  attempts         ChallengeAttempt[]
+  outcomes         ChallengeOutcome[]
+
+  @@index([profileId, startedAt])
+  @@index([theme, mode, startedAt])
+}
+
+model ChallengeAttempt {
+  id               String           @id @default(cuid())
+  sessionId        String
+  profileId        String
+  source           AttemptSource
+  requestId        String
+  redactedPayload  Json
+  rawPayloadHash   String
+  moderationStatus ModerationStatus @default(clean)
+  moderationReason String?
+  decisionStatus   DecisionStatus
+  decisionTrace    Json?
+  executionStatus  String?
+  challengeMeta    Json?
+  createdAt        DateTime         @default(now())
+
+  session          ChallengeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  profile          Profile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@index([profileId, createdAt])
+  @@index([decisionStatus, createdAt])
+}
+
+model ChallengeOutcome {
+  id               String            @id @default(cuid())
+  sessionId        String
+  profileId        String
+  theme            ChallengeTheme
+  mode             ChallengeMode
+  goalType         ChallengeGoalType
+  solvedAt         DateTime          @default(now())
+  solveMs          Int
+  verificationData Json
+  createdAt        DateTime          @default(now())
+
+  session          ChallengeSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  profile          Profile           @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, goalType])
+  @@index([profileId, theme, mode, solvedAt])
+}
+
+model LeaderboardEntry {
+  id               String            @id @default(cuid())
+  scope            LeaderboardScope
+  scopeKey         String            @unique
+  profileId        String
+  theme            ChallengeTheme?
+  mode             ChallengeMode?
+  solvedAt         DateTime
+  solveMs          Int
+  goalType         ChallengeGoalType
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  profile          Profile           @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([scope, theme, mode, solveMs, solvedAt])
+  @@index([scope, solveMs, solvedAt])
+}
+
+model RlDatasetSnapshot {
+  id               String    @id @default(cuid())
+  windowStart      DateTime
+  windowEnd        DateTime
+  attemptCount     Int
+  successCount     Int
+  blockedCount     Int
+  aggregateMetrics Json
+  createdAt        DateTime  @default(now())
+
+  candidates       RlCandidate[]
+
+  @@index([windowStart, windowEnd])
+}
+
+model RlCandidate {
+  id                  String            @id @default(cuid())
+  snapshotId          String?
+  candidateType       RlCandidateType
+  status              RlCandidateStatus @default(pending)
+  promptDiff          Json?
+  policyDiff          Json?
+  offlineMetrics      Json
+  hackSuccessDelta    Float
+  legitCompletionDrop Float
+  createdAt           DateTime          @default(now())
+  reviewedAt          DateTime?
+  reviewedBy          String?
+  reviewReason        String?
+  appliedAt           DateTime?
+
+  snapshot            RlDatasetSnapshot? @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
+  deployments         RlDeployment[]
+
+  @@index([status, createdAt])
+}
+
+model RlDeployment {
+  id                  String       @id @default(cuid())
+  candidateId         String
+  configVersion       Int
+  isActive            Boolean      @default(true)
+  activatedAt         DateTime     @default(now())
+  previousDeploymentId String?
+
+  candidate           RlCandidate  @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([configVersion])
+  @@index([isActive, activatedAt])
+}
+
+model RateLimitCounter {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  windowStart DateTime
+  windowEnd   DateTime
+  count       Int      @default(0)
+  updatedAt   DateTime @updatedAt
+}

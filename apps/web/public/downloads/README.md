@@ -1,22 +1,23 @@
 # TripWire v1
 
-TripWire is a TypeScript guard framework for **agent tool calls**.
+TripWire is a guard framework for **agent tool calls**.
 
 Set your agent to full access for full creativity. TripWire catches the hiccups before they become incidents.
 Join as a maintainer; bots are welcome too ;)
 
-It runs as a pre-tool-call hook on edge and Node runtimes and combines:
+It runs as a pre-tool-call hook on edge, Node, and Python runtimes and combines:
 
 - Deterministic policy enforcement (ThreatLocker-style control posture)
 - Chain-of-command escalation for unsupported-by-policy tool calls (one-time exceptions)
 - Lightweight anomaly detection (burst/novelty/z-score/arg-shape drift)
 - Adapter-ready integrations (generic, OpenAI-style, LangChain-style)
-- Public Next.js simulator with Three.js security visualization
+- Public Next.js playground with simulator + challenge tabs
 
 ## Repository layout
 
-- `packages/guard` – `@tripwire/guard` npm package (core, policy compiler, anomaly, adapters, CLI)
-- `apps/web` – public-facing Next.js site (`/`, `/simulator`, `/research`)
+- `packages/guard` – `@twire/guard` npm package (core, policy compiler, anomaly, adapters, CLI)
+- `packages/python` – `tripwire-guard` pip package (`twire_guard`, CLI, adapters)
+- `apps/web` – public-facing Next.js site (`/`, `/playground`, `/docs`)
 - `examples/default.policy.md` – sample structured policy markdown
 - `docs/chain-of-command.md` – unsupported-call escalation process
 - `docs/research-matrix.md` – comparable solutions and positioning references
@@ -39,9 +40,19 @@ npm run dev:web
 ## CLI examples
 
 ```bash
-tripwire policy compile --in examples/default.policy.md --out policy.json
-tripwire eval --policy examples/default.policy.md --in examples/events.jsonl --out findings.jsonl
-tripwire replay --policy examples/default.policy.md --in examples/events.jsonl --report report.json
+twire policy compile --in examples/default.policy.md --out policy.json
+twire eval --policy examples/default.policy.md --in examples/events.jsonl --out findings.jsonl
+twire replay --policy examples/default.policy.md --in examples/events.jsonl --report report.json
+```
+
+## Python package
+
+```bash
+pip install tripwire-guard
+```
+
+```python
+from twire_guard import InMemoryStore, compile_policy, create_guard
 ```
 
 ## Policy format

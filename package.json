@@ -1,5 +1,5 @@
 {
-  "name": "tripwire",
+  "name": "twire",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -15,12 +15,15 @@
     "react-dom": "19.2.4"
   },
   "scripts": {
-    "build": "npm run build --workspace @tripwire/guard && npm run build --workspace @tripwire/web",
-    "build:guard": "npm run build --workspace @tripwire/guard",
-    "build:web": "npm run build --workspace @tripwire/web",
-    "test": "npm run test --workspace @tripwire/guard",
-    "dev:web": "npm run dev --workspace @tripwire/web",
-    "dev:guard": "npm run dev --workspace @tripwire/guard",
-    "start": "npm run start --workspace @tripwire/web"
+    "build": "npm run build --workspace @twire/guard && npm run build --workspace @twire/web",
+    "build:guard": "npm run build --workspace @twire/guard",
+    "build:web": "npm run build --workspace @twire/web",
+    "prisma:generate:web": "npm run prisma:generate --workspace @twire/web",
+    "prisma:migrate:web": "npm run prisma:migrate --workspace @twire/web",
+    "rl:train": "npm run rl:train --workspace @twire/web",
+    "test": "npm run test --workspace @twire/guard && npm run test --workspace @twire/web",
+    "dev:web": "npm run dev --workspace @twire/web",
+    "dev:guard": "npm run dev --workspace @twire/guard",
+    "start": "npm run start --workspace @twire/web"
   }
 }

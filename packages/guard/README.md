@@ -1,4 +1,4 @@
-# @tripwire/guard
+# @twire/guard
 
 Pre-tool-call guard engine for agentic runtimes on edge and Node.
 
@@ -14,13 +14,19 @@ Pre-tool-call guard engine for agentic runtimes on edge and Node.
 ## Install
 
 ```bash
-npm i @tripwire/guard
+npm i @twire/guard
+```
+
+Python distribution:
+
+```bash
+pip install tripwire-guard
 ```
 
 ## Quick start
 
 ```ts
-import { compilePolicy, createGuard, InMemoryStore } from "@tripwire/guard";
+import { compilePolicy, createGuard, InMemoryStore } from "@twire/guard";
 
 const policy = compilePolicy(markdown);
 const guard = createGuard({
@@ -65,17 +71,17 @@ const wrapped = guard.wrapTool("exec", async (input) => runExec(input), {
 ## CLI
 
 ```bash
-tripwire policy compile --in policy.policy.md --out policy.json
-tripwire policy migrate --in rolepack.json --out rolepack.policy.md
-tripwire eval --policy policy.policy.md --in events.jsonl --out results.jsonl
-tripwire replay --policy policy.policy.md --in events.jsonl --report report.json
+twire policy compile --in policy.policy.md --out policy.json
+twire policy migrate --in rolepack.json --out rolepack.policy.md
+twire eval --policy policy.policy.md --in events.jsonl --out results.jsonl
+twire replay --policy policy.policy.md --in events.jsonl --report report.json
 ```
 
 ## Policy format
 
 ````md
 ---
-id: tripwire.dev
+id: twire.dev
 version: 1
 mode: enforce
 defaults:

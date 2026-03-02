@@ -1,4 +1,4 @@
-import { evalEvent, hashEvent } from '@tripwire/core';
+import { evalEvent, hashEvent } from '@twire/core';
 
 /**
  * Minimal Mesh-shaped adapter.

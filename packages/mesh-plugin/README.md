@@ -1,4 +1,4 @@
-# @tripwire/mesh-plugin (stub)
+# @twire/mesh-plugin (stub)
 
 This is a **minimal adapter** to use Tripwire as a *framework* with **Mesh as an application plugin**.
 
@@ -10,7 +10,7 @@ This is a **minimal adapter** to use Tripwire as a *framework* with **Mesh as an
 
 ```js
 import fs from 'node:fs';
-import { wrapCapability } from '@tripwire/mesh-plugin';
+import { wrapCapability } from '@twire/mesh-plugin';
 
 const rulepack = JSON.parse(fs.readFileSync('rolepacks/wallet.json','utf8'));
 

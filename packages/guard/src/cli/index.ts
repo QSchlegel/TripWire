@@ -13,13 +13,13 @@ interface EvalRecord {
 
 function usage(exitCode = 0): never {
   const text = [
-    "TripWire CLI",
+    "Twire CLI",
     "",
     "Commands:",
-    "  tripwire policy compile --in policy.policy.md --out policy.json",
-    "  tripwire policy migrate --in rolepack.json --out policy.policy.md",
-    "  tripwire eval --policy policy.policy.md --in events.jsonl [--out results.jsonl]",
-    "  tripwire replay --policy policy.policy.md --in events.jsonl --report report.json"
+    "  twire policy compile --in policy.policy.md --out policy.json",
+    "  twire policy migrate --in rolepack.json --out policy.policy.md",
+    "  twire eval --policy policy.policy.md --in events.jsonl [--out results.jsonl]",
+    "  twire replay --policy policy.policy.md --in events.jsonl --report report.json"
   ].join("\n");
 
   process.stdout.write(`${text}\n`);

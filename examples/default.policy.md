@@ -1,5 +1,5 @@
 ---
-id: tripwire.dev
+id: twire.dev
 version: 1
 mode: enforce
 defaults:

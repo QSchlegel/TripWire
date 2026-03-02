@@ -4,41 +4,61 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
+type Theme = "system" | "light" | "dark";
+
 const links = [
-  { href: "/", label: "Overview" },
-  { href: "/simulator", label: "Simulator" },
-  { href: "/research", label: "Research" },
+  { href: "/playground", label: "Playground" },
   { href: "/docs", label: "Docs" }
 ];
 
+const CYCLE: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
+
+function applyTheme(theme: Theme) {
+  if (theme === "system") {
+    document.documentElement.removeAttribute("data-theme");
+  } else {
+    document.documentElement.setAttribute("data-theme", theme);
+  }
+}
+
 export function SiteNav() {
   const pathname = usePathname();
-  const [theme, setTheme] = useState<"light" | "dark" | null>(null);
+  const [theme, setTheme] = useState<Theme>("system");
 
   useEffect(() => {
     const stored = window.localStorage.getItem("tripwire-theme");
     if (stored === "light" || stored === "dark") {
-      document.documentElement.setAttribute("data-theme", stored);
+      applyTheme(stored);
       setTheme(stored);
-      return;
+    } else {
+      // No explicit user preference — remove data-theme and let CSS media query apply.
+      document.documentElement.removeAttribute("data-theme");
+      setTheme("system");
     }
 
-    const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
-    const inferred = prefersLight ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", inferred);
-    setTheme(inferred);
+    // When in system mode, re-render if the OS preference changes so the label stays accurate.
+    const mq = window.matchMedia("(prefers-color-scheme: light)");
+    const onMqChange = () => {
+      const current = window.localStorage.getItem("tripwire-theme");
+      if (current !== "light" && current !== "dark") setTheme("system");
+    };
+    mq.addEventListener("change", onMqChange);
+    return () => mq.removeEventListener("change", onMqChange);
   }, []);
 
-  const toggleTheme = () => {
-    const next = theme === "light" ? "dark" : "light";
-    document.documentElement.setAttribute("data-theme", next);
-    window.localStorage.setItem("tripwire-theme", next);
+  const cycleTheme = () => {
+    const next = CYCLE[theme];
+    applyTheme(next);
+    if (next === "system") {
+      window.localStorage.removeItem("tripwire-theme");
+    } else {
+      window.localStorage.setItem("tripwire-theme", next);
+    }
     setTheme(next);
   };
 
-  const themeButtonLabel =
-    theme === "light" ? "Switch to Dark" : theme === "dark" ? "Switch to Light" : "Toggle Theme";
-  const currentTheme = theme ?? "dark";
+  const label = theme === "system" ? "System" : theme === "light" ? "Light" : "Dark";
+  const nextLabel = CYCLE[theme].charAt(0).toUpperCase() + CYCLE[theme].slice(1);
 
   return (
     <header className="site-header">
@@ -62,11 +82,11 @@ export function SiteNav() {
         <button
           type="button"
           className="theme-toggle"
-          onClick={toggleTheme}
-          aria-label={`Toggle theme. Current mode: ${currentTheme}.`}
-          title={`Current: ${currentTheme} mode`}
+          onClick={cycleTheme}
+          aria-label={`Color scheme: ${label}. Click to switch to ${nextLabel}.`}
+          title={`Color scheme: ${label}`}
         >
-          {themeButtonLabel}
+          {label}
         </button>
       </div>
     </header>

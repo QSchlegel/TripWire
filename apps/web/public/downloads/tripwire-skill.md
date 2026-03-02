@@ -1,5 +1,5 @@
 ---
-name: tripwire-chain-of-command
+name: twire-chain-of-command
 description: Use when handling unsupported-by-policy TripWire tool calls that may require supervisor escalation, one-time exception review, and auditable yes/no/escalate decisions.
 ---
 

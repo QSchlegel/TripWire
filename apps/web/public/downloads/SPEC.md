@@ -80,30 +80,33 @@ Runtime behavior:
 
 ## Package and exports
 
-Published package: `@tripwire/guard`
+Published packages:
 
-Subpath exports:
+- npm: `@twire/guard`
+- pip: `tripwire-guard` (module: `twire_guard`)
 
-- `@tripwire/guard`
-- `@tripwire/guard/core`
-- `@tripwire/guard/policy`
-- `@tripwire/guard/anomaly`
-- `@tripwire/guard/adapters/openai`
-- `@tripwire/guard/adapters/langchain`
-- `@tripwire/guard/cli`
-- `@tripwire/guard/types`
+JavaScript subpath exports:
+
+- `@twire/guard`
+- `@twire/guard/core`
+- `@twire/guard/policy`
+- `@twire/guard/anomaly`
+- `@twire/guard/adapters/openai`
+- `@twire/guard/adapters/langchain`
+- `@twire/guard/cli`
+- `@twire/guard/types`
 
 ## CLI contract
 
-- `tripwire policy compile --in policy.policy.md --out policy.json`
-- `tripwire policy migrate --in rolepack.json --out rolepack.policy.md`
-- `tripwire eval --policy policy.policy.md --in events.jsonl [--out results.jsonl]`
-- `tripwire replay --policy policy.policy.md --in events.jsonl --report report.json`
+- `twire policy compile --in policy.policy.md --out policy.json`
+- `twire policy migrate --in rolepack.json --out rolepack.policy.md`
+- `twire eval --policy policy.policy.md --in events.jsonl [--out results.jsonl]`
+- `twire replay --policy policy.policy.md --in events.jsonl --report report.json`
 
 ## Web application
 
 Public Next.js app in `apps/web`:
 
 - `/` landing page with Three.js guard visualization
-- `/simulator` in-browser policy + event replay
-- `/research` similar-solutions matrix
+- `/playground` in-browser simulator + challenge workbench
+- `/docs` documentation hub with downloads and API quickstart
