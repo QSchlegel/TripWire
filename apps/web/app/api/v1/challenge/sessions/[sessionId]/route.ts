@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import type { ChallengeOutcome } from "@prisma/client";
 import { jsonResponse, newRequestId, notFound, serverError } from "@/lib/server/api";
 import { requireApiAuthAndRateLimit } from "@/lib/server/route-helpers";
 import { getChallengeSession } from "@/lib/challenge/service";
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest, context: Params) {
         dailyFlagVersion: session.dailyFlagVersion,
         solved: session.outcomes.length > 0,
         solveGoalType: session.outcomes[0]?.goalType,
-        outcomes: session.outcomes.map((outcome) => ({
+        outcomes: session.outcomes.map((outcome: ChallengeOutcome) => ({
           id: outcome.id,
           goalType: outcome.goalType,
           solvedAt: outcome.solvedAt.toISOString(),
