@@ -1,0 +1,107 @@
+name: Relay Smoke
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "15 2 * * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Smoke target base URL"
+        required: false
+        default: "https://bot-relay.com"
+      mode:
+        description: "Smoke mode"
+        required: false
+        default: "hosted-public"
+
+jobs:
+  relay-contract-smoke:
+    name: Relay Contract Smoke
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run contract smoke suite
+        run: npm run smoke:relay:contract
+
+  relay-hosted-public-smoke:
+    name: Relay Hosted Public Smoke
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run hosted-public smoke suite
+        shell: bash
+        run: |
+          set -o pipefail
+
+          BASE_URL="${{ github.event.inputs.base_url }}"
+          if [ -z "$BASE_URL" ]; then
+            BASE_URL="https://bot-relay.com"
+          fi
+
+          MODE="${{ github.event.inputs.mode }}"
+          if [ -z "$MODE" ]; then
+            MODE="hosted-public"
+          fi
+
+          echo "BASE_URL=$BASE_URL" > relay-hosted-smoke.env
+          echo "MODE=$MODE" >> relay-hosted-smoke.env
+
+          SMOKE_BASE_URL="$BASE_URL" \
+          SMOKE_MODE="$MODE" \
+          SMOKE_REQUIRE_TUNNEL=false \
+          npm run smoke:relay:hosted 2>&1 | tee relay-hosted-smoke.log
+
+      - name: Upload hosted smoke logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relay-hosted-public-smoke-logs
+          path: |
+            relay-hosted-smoke.log
+            relay-hosted-smoke.env
+
+      - name: Publish summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f relay-hosted-smoke.env ]; then
+            source relay-hosted-smoke.env
+          else
+            BASE_URL="https://bot-relay.com"
+            MODE="hosted-public"
+          fi
+
+          {
+            echo "### Relay Hosted Public Smoke"
+            echo "- Base URL: $BASE_URL"
+            echo "- Mode: $MODE"
+            echo "- Non-blocking: true"
+            echo "- Logs: relay-hosted-public-smoke-logs artifact"
+          } >> "$GITHUB_STEP_SUMMARY"

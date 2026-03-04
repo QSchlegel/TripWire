@@ -18,6 +18,7 @@ It runs as a pre-tool-call hook on edge, Node, and Python runtimes and combines:
 ## Repository layout
 
 - `packages/guard` – `@twire/guard` npm package (core, policy compiler, anomaly, adapters, CLI)
+- `packages/relay` – `@twire/relay` npm package (prescreened webhook utilities + secure runtime tunnel client)
 - `packages/python` – `tripwire-guard` pip package (`twire_guard`, CLI, adapters)
 - `apps/web` – public-facing Next.js site (`/`, `/playground`, `/docs`)
 - `apps/web` – includes public challenge API (`/api/v1/*`) and OpenAPI (`/openapi/v1.json`)
@@ -38,6 +39,15 @@ Run web app:
 
 ```bash
 npm run dev:web
+```
+
+Run relay smoke suites:
+
+```bash
+npm run smoke:relay:contract
+npm run smoke:relay:local
+npm run smoke:relay:hosted
+npm run smoke:relay:ci
 ```
 
 ## Challenge Platform Quickstart

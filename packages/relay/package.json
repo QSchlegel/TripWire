@@ -1,0 +1,52 @@
+{
+  "name": "@twire/relay",
+  "version": "0.1.0",
+  "description": "Prescreened webhook and secure tunnel runtime client for Bot Relay.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/QSchlegel/TripWire.git",
+    "directory": "packages/relay"
+  },
+  "homepage": "https://tripwire.observer/",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./adapters/next": {
+      "types": "./dist/adapters/next.d.ts",
+      "import": "./dist/adapters/next.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "smoke:contract": "SMOKE_MODE=contract vitest run -c vitest.smoke.config.ts test/smoke/contract.smoke.test.ts",
+    "smoke:live": "vitest run -c vitest.smoke.config.ts test/smoke/live.smoke.test.ts",
+    "smoke:ci": "npm run smoke:contract && npm run smoke:live"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "vitest": "^3.2.4"
+  }
+}
