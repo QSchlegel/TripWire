@@ -1,12 +1,12 @@
 {
-  "name": "@twire/relay",
+  "name": "@twire/enclave",
   "version": "0.1.0",
-  "description": "Prescreened webhook and secure tunnel runtime client for Bot Relay.",
+  "description": "Handle-only key custody and wallet plugin runtime for TripWire.",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/QSchlegel/TripWire.git",
-    "directory": "packages/relay"
+    "directory": "packages/enclave"
   },
   "homepage": "https://tripwire.observer/",
   "publishConfig": {
@@ -25,17 +25,21 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./adapters/next": {
-      "types": "./dist/adapters/next.d.ts",
-      "import": "./dist/adapters/next.js"
-    },
-    "./adapters/openclaw": {
-      "types": "./dist/adapters/openclaw.d.ts",
-      "import": "./dist/adapters/openclaw.js"
-    },
     "./types": {
       "types": "./dist/types.d.ts",
       "import": "./dist/types.js"
+    },
+    "./relay": {
+      "types": "./dist/relay.d.ts",
+      "import": "./dist/relay.js"
+    },
+    "./adapters/mesh-cardano": {
+      "types": "./dist/adapters/mesh-cardano.d.ts",
+      "import": "./dist/adapters/mesh-cardano.js"
+    },
+    "./adapters/mesh-bitcoin": {
+      "types": "./dist/adapters/mesh-bitcoin.d.ts",
+      "import": "./dist/adapters/mesh-bitcoin.js"
     }
   },
   "scripts": {
@@ -43,10 +47,11 @@
     "dev": "tsc -p tsconfig.build.json --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "smoke:contract": "SMOKE_MODE=contract vitest run -c vitest.smoke.config.ts test/smoke/contract.smoke.test.ts",
-    "smoke:live": "vitest run -c vitest.smoke.config.ts test/smoke/live.smoke.test.ts",
-    "smoke:ci": "npm run smoke:contract && npm run smoke:live"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@meshsdk/bitcoin": "1.9.0-beta.98",
+    "@meshsdk/core": "1.9.0-beta.101"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

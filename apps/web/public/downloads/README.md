@@ -23,6 +23,43 @@ It runs as a pre-tool-call hook on edge, Node, and Python runtimes and combines:
 - `docs/research-matrix.md` – comparable solutions and positioning references
 - `tripwire-skill.md` – ingest-ready skill instructions for agents
 
+## Architecture diagrams
+
+### Package architecture
+
+```mermaid
+flowchart LR
+  subgraph Runtime["Runtime & SDK packages"]
+    Guard["@twire/guard (TypeScript)"]
+    Python["tripwire-guard / twire_guard (Python)"]
+  end
+
+  subgraph Product["Product surface"]
+    Web["apps/web (Next.js)"]
+    Docs["docs + tripwire-skill.md"]
+    Examples["examples/*.policy.md + events.jsonl"]
+  end
+
+  Guard -->|"npm import"| Web
+  Guard -->|"policy compile/eval"| Examples
+  Python -->|"Python runtime integration"| Examples
+  Docs -->|"operator guidance"| Web
+```
+
+### Setup architecture
+
+```mermaid
+flowchart TD
+  A["Clone / open repo"] --> B["npm install"]
+  B --> C["Workspace packages linked<br/>(@twire/guard, @twire/web)"]
+
+  C --> D{"Choose workflow"}
+  D --> E["npm run test"]
+  D --> F["npm run build"]
+  D --> G["npm run dev:web"]
+  G --> H["TripWire web app<br/>/, /playground, /docs"]
+```
+
 ## Getting started
 
 ```bash

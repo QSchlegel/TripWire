@@ -77,6 +77,11 @@ twire eval --policy policy.policy.md --in events.jsonl --out results.jsonl
 twire replay --policy policy.policy.md --in events.jsonl --report report.json
 ```
 
+## Smoke suites
+
+- `npm run smoke:contract` runs deterministic simulator contract smoke tests.
+- `npm run smoke:ci` aliases `smoke:contract` for CI usage.
+
 ## Policy format
 
 ````md

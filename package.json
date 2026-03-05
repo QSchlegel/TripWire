@@ -5,7 +5,7 @@
   "engines": {
     "node": ">=20.9.0"
   },
-  "workspaces": ["packages/guard", "packages/relay", "apps/web"],
+  "workspaces": ["packages/guard", "packages/relay", "packages/enclave", "apps/web"],
   "overrides": {
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -15,17 +15,21 @@
     "react-dom": "19.2.4"
   },
   "scripts": {
-    "build": "npm run prisma:generate:web && npm run build --workspace @twire/guard && npm run build --workspace @twire/relay && npm run build --workspace @twire/web",
+    "build": "npm run prisma:generate:web && npm run build --workspace @twire/guard && npm run build --workspace @twire/relay && npm run build --workspace @twire/enclave && npm run build --workspace @twire/web",
     "build:guard": "npm run build --workspace @twire/guard",
     "build:relay": "npm run build --workspace @twire/relay",
+    "build:enclave": "npm run build --workspace @twire/enclave",
     "build:web": "npm run prisma:generate:web && npm run build --workspace @twire/web",
     "prisma:generate:web": "npm run prisma:generate --workspace @twire/web",
     "prisma:migrate:web": "npm run prisma:migrate --workspace @twire/web",
     "rl:train": "npm run rl:train --workspace @twire/web",
-    "test": "npm run test --workspace @twire/guard && npm run test --workspace @twire/relay && npm run test --workspace @twire/web",
+    "test": "npm run test --workspace @twire/guard && npm run test --workspace @twire/relay && npm run test --workspace @twire/enclave && npm run test --workspace @twire/web",
+    "test:enclave": "npm run test --workspace @twire/enclave",
+    "smoke:guard:contract": "npm run smoke:contract --workspace @twire/guard",
     "smoke:relay:contract": "npm run smoke:contract --workspace @twire/relay",
     "smoke:relay:local": "SMOKE_MODE=${SMOKE_MODE:-local} SMOKE_BASE_URL=${SMOKE_BASE_URL:-http://localhost:3000} SMOKE_REQUIRE_TUNNEL=${SMOKE_REQUIRE_TUNNEL:-true} npm run smoke:live --workspace @twire/relay",
     "smoke:relay:hosted": "SMOKE_MODE=${SMOKE_MODE:-hosted-public} SMOKE_BASE_URL=${SMOKE_BASE_URL:-https://bot-relay.com} SMOKE_REQUIRE_TUNNEL=${SMOKE_REQUIRE_TUNNEL:-false} npm run smoke:live --workspace @twire/relay",
+    "smoke:ci": "npm run smoke:guard:contract && npm run smoke:relay:contract",
     "smoke:relay:ci": "npm run smoke:relay:contract && npm run smoke:relay:hosted",
     "dev:web": "npm run dev --workspace @twire/web",
     "dev:guard": "npm run dev --workspace @twire/guard",

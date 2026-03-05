@@ -62,6 +62,8 @@
     "dev": "tsc -p tsconfig.build.json --watch",
     "test": "vitest run",
     "test:watch": "vitest",
+    "smoke:contract": "SMOKE_MODE=contract vitest run -c vitest.smoke.config.ts",
+    "smoke:ci": "npm run smoke:contract",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

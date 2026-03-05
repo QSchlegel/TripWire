@@ -100,6 +100,31 @@ export interface RelayDelivery {
   hasResponded(): boolean;
 }
 
+export interface RelayAdapterInput {
+  delivery: RelayDelivery;
+}
+
+export type RelayAdapterResult =
+  | {
+      outcome: "ack";
+      detail?: string;
+    }
+  | {
+      outcome: "nack";
+      retryable: boolean;
+      detail?: string;
+      code?: string;
+    };
+
+export interface RelayDeliveryAdapter {
+  handle(input: RelayAdapterInput): Promise<RelayAdapterResult> | RelayAdapterResult;
+}
+
+export interface CreateRelayRuntimeWithAdapterOptions {
+  adapterErrorCode?: string;
+  invalidResultCode?: string;
+}
+
 export interface RelayRuntime {
   onDelivery(handler: RelayDeliveryHandler): void;
   connect(): Promise<void>;

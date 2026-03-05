@@ -17,8 +17,8 @@ on:
         default: "hosted-public"
 
 jobs:
-  relay-contract-smoke:
-    name: Relay Contract Smoke
+  packages-contract-smoke:
+    name: Packages Contract Smoke
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -34,8 +34,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run contract smoke suite
-        run: npm run smoke:relay:contract
+      - name: Run package contract smoke suites
+        run: npm run smoke:ci
 
   relay-hosted-public-smoke:
     name: Relay Hosted Public Smoke

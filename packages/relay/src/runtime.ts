@@ -4,11 +4,15 @@ import {
 } from "./stores.js";
 import { verifyRelaySignature } from "./security.js";
 import type {
+  CreateRelayRuntimeWithAdapterOptions,
   IdempotencyStore,
   IdempotencyRecord,
   NonceStore,
+  RelayAdapterInput,
+  RelayAdapterResult,
   RelayAckInput,
   RelayDelivery,
+  RelayDeliveryAdapter,
   RelayDeliveryHandler,
   RelayEventEnvelope,
   RelayNackInput,
@@ -47,6 +51,9 @@ const DEFAULT_POLL: RelayRuntimePollConfig = {
   idleMs: 250
 };
 
+const DEFAULT_ADAPTER_ERROR_CODE = "adapter-error";
+const DEFAULT_INVALID_RESULT_CODE = "adapter-invalid-result";
+
 interface ResolvedRuntimeConfig {
   relayUrl: string;
   botId: string;
@@ -73,6 +80,56 @@ interface VerifyTransportFailure {
 export function createRelayRuntime(config: RelayRuntimeConfig): RelayRuntime {
   const resolved = resolveRuntimeConfig(config);
   return new RelayRuntimeImpl(resolved);
+}
+
+export function createRelayRuntimeWithAdapter(
+  config: RelayRuntimeConfig,
+  adapter: RelayDeliveryAdapter,
+  options: CreateRelayRuntimeWithAdapterOptions = {}
+): RelayRuntime {
+  const runtime = createRelayRuntime(config);
+  const adapterErrorCode = options.adapterErrorCode ?? DEFAULT_ADAPTER_ERROR_CODE;
+  const invalidResultCode = options.invalidResultCode ?? DEFAULT_INVALID_RESULT_CODE;
+
+  runtime.onDelivery(async (delivery) => {
+    let rawResult: unknown;
+    try {
+      const input: RelayAdapterInput = { delivery };
+      rawResult = await adapter.handle(input);
+    } catch (error) {
+      await delivery.nack({
+        retryable: true,
+        code: adapterErrorCode,
+        detail: stringifyError(error)
+      });
+      return;
+    }
+
+    const result = parseAdapterResult(rawResult);
+    if (!result) {
+      await delivery.nack({
+        retryable: true,
+        code: invalidResultCode,
+        detail: invalidResultCode
+      });
+      return;
+    }
+
+    if (result.outcome === "ack") {
+      await delivery.ack({
+        detail: result.detail
+      });
+      return;
+    }
+
+    await delivery.nack({
+      retryable: result.retryable,
+      code: result.code,
+      detail: result.detail
+    });
+  });
+
+  return runtime;
 }
 
 export function computeBackoffMs(attempt: number, config: RetryConfig, random = Math.random): number {
@@ -459,6 +516,42 @@ function ensureTrailingSlash(value: string): string {
   return value.endsWith("/") ? value : `${value}/`;
 }
 
+function parseAdapterResult(value: unknown): RelayAdapterResult | null {
+  if (!isRecord(value) || typeof value.outcome !== "string") {
+    return null;
+  }
+
+  if (value.outcome === "ack") {
+    if (!isStringOrUndefined(value.detail)) {
+      return null;
+    }
+
+    return {
+      outcome: "ack",
+      detail: value.detail
+    };
+  }
+
+  if (value.outcome === "nack") {
+    if (typeof value.retryable !== "boolean") {
+      return null;
+    }
+
+    if (!isStringOrUndefined(value.detail) || !isStringOrUndefined(value.code)) {
+      return null;
+    }
+
+    return {
+      outcome: "nack",
+      retryable: value.retryable,
+      detail: value.detail,
+      code: value.code
+    };
+  }
+
+  return null;
+}
+
 function parseQueuedDelivery(input: unknown): RelayQueuedDelivery {
   if (!isRecord(input)) {
     throw new Error("invalid-delivery-shape");
@@ -530,6 +623,10 @@ function parseEnvelope(rawBody: string, fallbackRequestId: string):
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStringOrUndefined(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === "string";
 }
 
 function sleep(ms: number): Promise<void> {
